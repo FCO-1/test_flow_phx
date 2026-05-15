@@ -2,25 +2,44 @@ defmodule TestFlowPhxWeb.TesterLive do
   @moduledoc """
   Top-level LiveView for the REST endpoint tester.
 
-  Phase C: just the shell + assigns. The request panel, tab bar,
-  collections sidebar and response panel come in later phases.
+  Fase D — full request editor (method/url/params/headers/body/auth) +
+  async Send via `UseCases.SendRequest` + response panel. Single working
+  tab, no persistence yet (tabs/collections/history land in Fases E–G).
   """
 
   use TestFlowPhxWeb, :live_view
 
   alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.UseCases.SendRequest
+  alias TestFlowPhxWeb.RequestParams
+  alias TestFlowPhxWeb.TesterComponents
 
   @impl true
   def mount(_params, _session, socket) do
     socket =
       socket
       |> assign(:page_title, "TestFlow")
-      |> assign(:active_request, Request.new(method: "GET", url: ""))
+      |> assign(:active_request, initial_request())
+      |> assign(:request_subtab, :params)
+      |> assign(:response_subtab, :body)
       |> assign(:response, nil)
       |> assign(:in_flight?, false)
       |> assign(:sidebar_section, :collections)
+      |> assign(:send_ref, nil)
 
     {:ok, socket}
+  end
+
+  defp initial_request do
+    Request.new(
+      method: "GET",
+      url: "",
+      query_params: [Request.empty_kv()],
+      headers: [Request.empty_kv()],
+      body_type: :none,
+      body_text: "",
+      auth: %{type: :none}
+    )
   end
 
   @impl true
@@ -55,40 +74,154 @@ defmodule TestFlowPhxWeb.TesterLive do
         </p>
       </aside>
 
-      <main class="flex-1 flex flex-col min-w-0 p-4 gap-4">
-        <header>
-          <h1 class="text-xl font-semibold text-zinc-800">TestFlow</h1>
-          <p class="text-sm text-zinc-500">
-            Probador local de endpoints REST · Fase C skeleton
-          </p>
-        </header>
+      <main class="flex-1 flex flex-col min-w-0 p-4 gap-4 overflow-y-auto">
+        <form id="request-form" phx-change="update_request" phx-submit="send" class="space-y-4">
+          <TesterComponents.method_url_bar request={@active_request} in_flight?={@in_flight?} />
+          <TesterComponents.request_subtabs active={@request_subtab} />
+          <div class="rounded-lg border border-zinc-200 bg-white p-4 min-h-[12rem]">
+            <%= case @request_subtab do %>
+              <% :params -> %>
+                <TesterComponents.kv_editor
+                  rows={@active_request.query_params}
+                  field="query_params"
+                />
+              <% :headers -> %>
+                <TesterComponents.kv_editor
+                  rows={@active_request.headers}
+                  field="headers"
+                  placeholder_key="Header-Name"
+                />
+              <% :body -> %>
+                <TesterComponents.body_editor request={@active_request} />
+              <% :auth -> %>
+                <TesterComponents.auth_editor request={@active_request} />
+            <% end %>
+          </div>
+        </form>
 
-        <section class="rounded-lg border border-zinc-200 bg-white p-6">
-          <p class="text-sm text-zinc-600">
-            El panel de petición aparece en Fase D. Por ahora la LiveView solo
-            está montada para verificar el routing y los assigns.
-          </p>
-          <dl class="mt-4 grid grid-cols-[8rem_1fr] gap-y-1 text-sm">
-            <dt class="text-zinc-500">method</dt>
-            <dd class="font-mono">{@active_request.method}</dd>
-            <dt class="text-zinc-500">url</dt>
-            <dd class="font-mono">{@active_request.url || "—"}</dd>
-            <dt class="text-zinc-500">in_flight?</dt>
-            <dd class="font-mono">{@in_flight?}</dd>
-            <dt class="text-zinc-500">sidebar</dt>
-            <dd class="font-mono">{@sidebar_section}</dd>
-          </dl>
-        </section>
+        <TesterComponents.response_panel
+          response={@response}
+          in_flight?={@in_flight?}
+          active={@response_subtab}
+        />
       </main>
     </div>
     """
   end
+
+  # ---------- Events ----------
 
   @impl true
   def handle_event("sidebar_section", %{"section" => section}, socket)
       when section in ["collections", "history"] do
     {:noreply, assign(socket, :sidebar_section, String.to_existing_atom(section))}
   end
+
+  def handle_event("set_request_subtab", %{"subtab" => st}, socket)
+      when st in ["params", "headers", "body", "auth"] do
+    {:noreply, assign(socket, :request_subtab, String.to_existing_atom(st))}
+  end
+
+  def handle_event("set_response_subtab", %{"subtab" => st}, socket)
+      when st in ["body", "headers", "raw"] do
+    {:noreply, assign(socket, :response_subtab, String.to_existing_atom(st))}
+  end
+
+  def handle_event("update_request", %{"request" => params}, socket) do
+    updated = RequestParams.from_form(params, socket.assigns.active_request)
+    {:noreply, assign(socket, :active_request, updated)}
+  end
+
+  def handle_event("update_request", _params, socket), do: {:noreply, socket}
+
+  def handle_event("add_kv_row", %{"field" => field}, socket)
+      when field in ["query_params", "headers"] do
+    key = String.to_existing_atom(field)
+    request = socket.assigns.active_request
+    rows = Map.fetch!(request, key) ++ [Request.empty_kv()]
+    {:noreply, assign(socket, :active_request, Map.put(request, key, rows))}
+  end
+
+  def handle_event("remove_kv_row", %{"field" => field, "index" => idx_str}, socket)
+      when field in ["query_params", "headers"] do
+    key = String.to_existing_atom(field)
+    idx = String.to_integer(idx_str)
+    request = socket.assigns.active_request
+    rows = Map.fetch!(request, key) |> List.delete_at(idx)
+    rows = if rows == [], do: [Request.empty_kv()], else: rows
+    {:noreply, assign(socket, :active_request, Map.put(request, key, rows))}
+  end
+
+  def handle_event("format_json", _params, socket) do
+    request = socket.assigns.active_request
+
+    case Jason.decode(request.body_text) do
+      {:ok, parsed} ->
+        pretty = parsed |> Jason.encode_to_iodata!(pretty: true) |> IO.iodata_to_binary()
+        {:noreply, assign(socket, :active_request, %{request | body_text: pretty})}
+
+      {:error, _} ->
+        {:noreply, put_flash(socket, :error, "JSON inválido — corrige antes de formatear.")}
+    end
+  end
+
+  def handle_event("send", _params, socket) do
+    if socket.assigns.in_flight? do
+      {:noreply, socket}
+    else
+      request = socket.assigns.active_request
+
+      task =
+        Task.Supervisor.async_nolink(
+          TestFlowPhx.TaskSupervisor,
+          fn -> SendRequest.execute(request, record_history?: false) end
+        )
+
+      socket =
+        socket
+        |> assign(:in_flight?, true)
+        |> assign(:response, nil)
+        |> assign(:send_ref, task.ref)
+        |> assign(:response_subtab, :body)
+
+      {:noreply, socket}
+    end
+  end
+
+  # ---------- Task results ----------
+
+  @impl true
+  def handle_info({ref, {response, _history}}, socket)
+      when is_reference(ref) and ref == socket.assigns.send_ref do
+    Process.demonitor(ref, [:flush])
+
+    socket =
+      socket
+      |> assign(:in_flight?, false)
+      |> assign(:response, response)
+      |> assign(:send_ref, nil)
+
+    {:noreply, socket}
+  end
+
+  def handle_info({:DOWN, ref, :process, _pid, reason}, socket)
+      when is_reference(ref) and ref == socket.assigns.send_ref do
+    error_response = %TestFlowPhx.Domain.Response{
+      error: %{type: :unknown, message: "Task crashed: #{inspect(reason)}"}
+    }
+
+    socket =
+      socket
+      |> assign(:in_flight?, false)
+      |> assign(:response, error_response)
+      |> assign(:send_ref, nil)
+
+    {:noreply, socket}
+  end
+
+  def handle_info(_other, socket), do: {:noreply, socket}
+
+  # ---------- helpers ----------
 
   defp sidebar_tab_class(active?) do
     base = "px-3 py-1.5 text-sm rounded-md transition-colors"

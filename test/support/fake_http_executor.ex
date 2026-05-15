@@ -3,9 +3,12 @@ defmodule TestFlowPhx.Support.FakeHttpExecutor do
   Test adapter implementing `TestFlowPhx.Domain.Ports.HttpExecutor`.
 
   Lets unit tests stage a canned `%Response{}` and inspect the captured
-  request without doing real network I/O. The most-recent request is
-  also stored under `:fake_http_last_request` in the Process dictionary
-  for assertions.
+  request without doing real network I/O.
+
+  Storage backend: `Application.put_env` rather than the process
+  dictionary, so when LiveView tests run the executor inside a
+  `Task.Supervisor.async_nolink` (different process) the staged response
+  is still visible. Requires `async: false` on tests that stage values.
   """
 
   @behaviour TestFlowPhx.Domain.Ports.HttpExecutor
@@ -18,25 +21,25 @@ defmodule TestFlowPhx.Support.FakeHttpExecutor do
   @doc "Stage the response the next `send/2` call should return."
   @spec stage(Response.t()) :: :ok
   def stage(%Response{} = response) do
-    Process.put(@stage_key, response)
+    Application.put_env(:test_flow_phx, @stage_key, response)
     :ok
   end
 
   @doc "Return the request captured by the most recent `send/2` call (or nil)."
-  def last_request, do: Process.get(@last_request_key)
+  def last_request, do: Application.get_env(:test_flow_phx, @last_request_key)
 
   @doc "Reset both the staged response and the last-request capture."
   def reset do
-    Process.delete(@stage_key)
-    Process.delete(@last_request_key)
+    Application.delete_env(:test_flow_phx, @stage_key)
+    Application.delete_env(:test_flow_phx, @last_request_key)
     :ok
   end
 
   @impl true
   def send(request, _opts \\ []) do
-    Process.put(@last_request_key, request)
+    Application.put_env(:test_flow_phx, @last_request_key, request)
 
-    case Process.get(@stage_key) do
+    case Application.get_env(:test_flow_phx, @stage_key) do
       %Response{} = r -> r
       nil -> %Response{status: 200, headers: [], body: "", duration_ms: 0, size_bytes: 0}
     end
