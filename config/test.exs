@@ -1,5 +1,11 @@
 import Config
 
+# Test-only DDD wiring: use the in-memory fake HTTP executor so unit
+# tests never touch the network. Tests can `FakeHttpExecutor.stage/1`
+# the response they want.
+config :test_flow_phx,
+  http_executor: TestFlowPhx.Support.FakeHttpExecutor
+
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
 config :test_flow_phx, TestFlowPhxWeb.Endpoint,
