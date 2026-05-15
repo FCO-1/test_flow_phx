@@ -42,7 +42,11 @@ defmodule TestFlowPhx.UseCases.SendRequest do
     repo = request_repo()
 
     if repo do
-      repo.append_history(entry)
+      try do
+        repo.append_history(entry)
+      catch
+        :exit, _ -> :ok
+      end
     else
       :ok
     end

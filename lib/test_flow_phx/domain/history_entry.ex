@@ -14,7 +14,8 @@ defmodule TestFlowPhx.Domain.HistoryEntry do
           response_status: non_neg_integer() | nil,
           response_duration_ms: non_neg_integer(),
           response_size_bytes: non_neg_integer(),
-          response_error: map() | nil
+          response_error: map() | nil,
+          result_file: String.t() | nil
         }
 
   defstruct id: nil,
@@ -23,5 +24,6 @@ defmodule TestFlowPhx.Domain.HistoryEntry do
             response_status: nil,
             response_duration_ms: 0,
             response_size_bytes: 0,
-            response_error: nil
+            response_error: nil,
+            result_file: nil
 end

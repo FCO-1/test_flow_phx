@@ -4,7 +4,10 @@ import Config
 # tests never touch the network. Tests can `FakeHttpExecutor.stage/1`
 # the response they want.
 config :test_flow_phx,
-  http_executor: TestFlowPhx.Support.FakeHttpExecutor
+  http_executor: TestFlowPhx.Support.FakeHttpExecutor,
+  # Tests start the JsonFileRepo on demand via start_supervised! with a
+  # temp dir, so the global app supervisor must NOT start one.
+  start_storage: false
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.
