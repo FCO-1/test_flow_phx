@@ -8,7 +8,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
   use Phoenix.Component
 
-  alias TestFlowPhx.Domain.{Request, Response}
+  alias TestFlowPhx.Domain.{Collection, Request, Response}
 
   @methods ~w(GET POST PUT PATCH DELETE HEAD OPTIONS)
 
@@ -85,6 +85,13 @@ defmodule TestFlowPhxWeb.TesterComponents do
         class="flex-1 rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
       />
       <button
+        type="button"
+        phx-click="open_save_modal"
+        class="rounded-md px-3 py-2 text-sm font-medium border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+      >
+        Save
+      </button>
+      <button
         type="submit"
         disabled={@in_flight?}
         class={[
@@ -97,6 +104,210 @@ defmodule TestFlowPhxWeb.TesterComponents do
       >
         {if(@in_flight?, do: "Sending…", else: "Send")}
       </button>
+    </div>
+    """
+  end
+
+  attr :collections, :list, required: true
+  attr :expanded, :any, required: true
+  attr :editing_id, :string, default: nil
+
+  def collections_sidebar(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <form phx-submit="new_collection" class="flex gap-1">
+        <input
+          type="text"
+          name="name"
+          placeholder="+ New collection"
+          autocomplete="off"
+          class="flex-1 rounded-md border border-zinc-300 px-2 py-1 text-xs"
+        />
+      </form>
+
+      <p :if={@collections == []} class="text-xs text-zinc-400 px-1 py-2 italic">
+        Sin colecciones todavía.
+      </p>
+
+      <ul class="space-y-1">
+        <li :for={c <- @collections} class="text-sm">
+          <div class={[
+            "flex items-center gap-1 rounded px-1 py-0.5 group",
+            "hover:bg-zinc-100"
+          ]}>
+            <button
+              type="button"
+              phx-click="toggle_collection"
+              phx-value-id={c.id}
+              class="text-zinc-400 w-4 text-xs"
+              aria-label="Toggle collection"
+            >{if(MapSet.member?(@expanded, c.id), do: "▼", else: "▶")}</button>
+
+            <%= if @editing_id == c.id do %>
+              <form
+                phx-submit="commit_rename_collection"
+                phx-value-id={c.id}
+                class="flex-1"
+              >
+                <input
+                  type="text"
+                  name="name"
+                  value={c.name}
+                  autocomplete="off"
+                  phx-blur="cancel_rename_collection"
+                  phx-key="Escape"
+                  phx-keydown="cancel_rename_collection"
+                  class="w-full rounded border border-zinc-300 px-1 py-0.5 text-xs"
+                  id={"rename-input-" <> c.id}
+                  phx-mounted={Phoenix.LiveView.JS.focus()}
+                />
+              </form>
+            <% else %>
+              <button
+                type="button"
+                phx-click="start_rename_collection"
+                phx-value-id={c.id}
+                class="flex-1 text-left truncate"
+                title={"Rename " <> c.name}
+              >{c.name}</button>
+            <% end %>
+
+            <span class="text-xs text-zinc-400">{length(c.requests)}</span>
+
+            <button
+              type="button"
+              phx-click="delete_collection"
+              phx-value-id={c.id}
+              aria-label="Delete collection"
+              class="text-zinc-300 hover:text-red-600 px-1 invisible group-hover:visible"
+              data-confirm={"¿Borrar la colección \"" <> c.name <> "\"?"}
+            >×</button>
+          </div>
+
+          <ul :if={MapSet.member?(@expanded, c.id)} class="pl-6 space-y-0.5 mt-1">
+            <li :if={c.requests == []} class="text-xs text-zinc-400 italic py-1">
+              (vacía)
+            </li>
+            <li :for={r <- c.requests} class="flex items-center gap-1 group">
+              <button
+                type="button"
+                phx-click="open_request_in_tab"
+                phx-value-collection-id={c.id}
+                phx-value-request-id={r.id}
+                class="flex-1 flex items-center gap-2 text-left text-xs rounded px-1 py-0.5 hover:bg-zinc-100"
+              >
+                <span class={tab_method_class(r.method)}>{r.method}</span>
+                <span class="truncate">{request_label(r)}</span>
+              </button>
+              <button
+                type="button"
+                phx-click="delete_request_from_collection"
+                phx-value-collection-id={c.id}
+                phx-value-request-id={r.id}
+                aria-label="Delete request"
+                class="text-zinc-300 hover:text-red-600 px-1 invisible group-hover:visible text-xs"
+              >×</button>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
+  attr :state, :map, required: true
+  attr :collections, :list, required: true
+
+  def save_request_modal(assigns) do
+    ~H"""
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40"
+      phx-click="close_save_modal"
+    >
+      <div
+        class="bg-white rounded-lg shadow-xl w-full max-w-md p-5"
+        phx-click-away="close_save_modal"
+        phx-window-keydown="close_save_modal"
+        phx-key="Escape"
+      >
+        <h2 class="text-base font-semibold text-zinc-800 mb-3">Guardar request</h2>
+
+        <form
+          id="save-request-form"
+          phx-change="update_save_modal"
+          phx-submit="commit_save"
+          class="space-y-3"
+        >
+          <div>
+            <label class="block text-xs text-zinc-500 mb-1">Nombre</label>
+            <input
+              type="text"
+              name="save[name]"
+              value={@state.name}
+              autocomplete="off"
+              phx-debounce="200"
+              autofocus
+              class="w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs text-zinc-500 mb-1">Colección</label>
+            <div class="space-y-1 max-h-40 overflow-y-auto rounded border border-zinc-200 p-2">
+              <label
+                :for={c <- @collections}
+                class="flex items-center gap-2 text-sm cursor-pointer"
+              >
+                <input
+                  type="radio"
+                  name="save[target]"
+                  value={c.id}
+                  checked={@state.target == c.id}
+                />
+                <span class="truncate">{c.name}</span>
+                <span class="text-xs text-zinc-400">({length(c.requests)})</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="save[target]"
+                  value="new"
+                  checked={@state.target == :new}
+                />
+                <em>+ Nueva colección</em>
+              </label>
+            </div>
+          </div>
+
+          <div :if={@state.target == :new}>
+            <label class="block text-xs text-zinc-500 mb-1">Nombre de la colección</label>
+            <input
+              type="text"
+              name="save[new_name]"
+              value={@state.new_name}
+              autocomplete="off"
+              phx-debounce="200"
+              class="w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+            />
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              phx-click="close_save_modal"
+              class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              class="rounded-md px-3 py-1.5 text-sm bg-zinc-900 text-white hover:bg-zinc-700"
+            >
+              Guardar
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
     """
   end
@@ -446,6 +657,17 @@ defmodule TestFlowPhxWeb.TesterComponents do
       true -> "Untitled"
     end
   end
+
+  defp request_label(%{name: name, url: url}) do
+    cond do
+      is_binary(name) and name not in ["", "Untitled"] -> name
+      is_binary(url) and url != "" -> url
+      true -> "Untitled"
+    end
+  end
+
+  # Discourage unused alias warnings while keeping aliases for typespecs.
+  _ = Collection
 
   defp tab_method_class(method) do
     family =

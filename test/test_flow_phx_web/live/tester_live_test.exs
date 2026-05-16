@@ -3,7 +3,7 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias TestFlowPhx.Domain.Response
+  alias TestFlowPhx.Domain.{Request, Response}
   alias TestFlowPhx.Support.FakeHttpExecutor
 
   setup do
@@ -28,7 +28,7 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
     test "sidebar toggles between Collections and History", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
-      assert render(view) =~ "añade colecciones"
+      assert render(view) =~ "Sin colecciones"
 
       assert view
              |> element("aside button", "History")
@@ -237,6 +237,150 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
       html_back = render(view)
 
       assert html_back =~ ">201<"
+    end
+  end
+
+  describe "collections sidebar (with real repo)" do
+    alias TestFlowPhx.Infrastructure.Storage.JsonFileRepo
+    alias TestFlowPhx.UseCases.Collections
+
+    setup do
+      tmp = Path.join(System.tmp_dir!(), "tester_live_repo_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      start_supervised!(
+        {JsonFileRepo,
+         name: JsonFileRepo, path: Path.join(tmp, "state.json"), flush_after_ms: 5}
+      )
+
+      :ok
+    end
+
+    test "shows existing collections on mount", %{conn: conn} do
+      Collections.create("Smoke API")
+
+      {:ok, _view, html} = live(conn, "/")
+      assert html =~ "Smoke API"
+      refute html =~ "Sin colecciones"
+    end
+
+    test "new_collection creates and lists it", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      html =
+        view
+        |> form("form[phx-submit=new_collection]", %{"name" => "Fresh"})
+        |> render_submit()
+
+      assert html =~ "Fresh"
+    end
+
+    test "delete_collection removes it from the list", %{conn: conn} do
+      coll = Collections.create("To Delete")
+
+      {:ok, view, _html} = live(conn, "/")
+      assert render(view) =~ "To Delete"
+
+      html =
+        view
+        |> element(~s|button[phx-click="delete_collection"][phx-value-id="#{coll.id}"]|)
+        |> render_click()
+
+      refute html =~ "To Delete"
+    end
+
+    test "rename flow updates the name", %{conn: conn} do
+      coll = Collections.create("Old")
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element(~s|button[phx-click="start_rename_collection"][phx-value-id="#{coll.id}"]|)
+      |> render_click()
+
+      html =
+        view
+        |> form(~s|form[phx-submit=commit_rename_collection][phx-value-id="#{coll.id}"]|,
+          %{"name" => "Brand New"}
+        )
+        |> render_submit()
+
+      assert html =~ "Brand New"
+      refute html =~ ">Old<"
+    end
+
+    test "open_request_in_tab opens the saved request as a new active tab", %{conn: conn} do
+      coll = Collections.create("Stash")
+
+      req =
+        Collections.add_request(
+          coll.id,
+          Request.new(id: "saved-1", name: "Ping", method: "GET", url: "https://x.test/ping")
+        )
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element(~s|button[phx-click="toggle_collection"][phx-value-id="#{coll.id}"]|)
+      |> render_click()
+
+      html =
+        view
+        |> element(
+          ~s|button[phx-click="open_request_in_tab"][phx-value-request-id="#{req.id}"]|
+        )
+        |> render_click()
+
+      assert html =~ "https://x.test/ping"
+      # New tab id is a fresh one — saved request id never becomes a tab id.
+      refute html =~ ~s(name="active_tab_id" value="saved-1")
+    end
+
+    test "save modal opens, lists existing collections, and persists request", %{conn: conn} do
+      coll = Collections.create("Target")
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "POST", url: "https://api.test/x"})
+      |> render_change()
+
+      modal_html =
+        view |> element(~s|button[phx-click="open_save_modal"]|) |> render_click()
+
+      assert modal_html =~ "Guardar request"
+      assert modal_html =~ "Target"
+      assert modal_html =~ "POST https://api.test/x"
+
+      view
+      |> form("#save-request-form",
+        save: %{name: "My Saved", target: coll.id}
+      )
+      |> render_submit()
+
+      reloaded = Collections.list() |> Enum.find(&(&1.id == coll.id))
+      assert [%{name: "My Saved", url: "https://api.test/x", method: "POST"}] = reloaded.requests
+    end
+
+    test "save modal creates a new collection inline when :new is chosen", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "GET", url: "https://api.test/users"})
+      |> render_change()
+
+      view |> element(~s|button[phx-click="open_save_modal"]|) |> render_click()
+
+      view
+      |> form("#save-request-form",
+        save: %{name: "List Users", target: "new", new_name: "Brand New Col"}
+      )
+      |> render_submit()
+
+      [coll] = Collections.list()
+      assert coll.name == "Brand New Col"
+      assert [%{name: "List Users"}] = coll.requests
     end
   end
 

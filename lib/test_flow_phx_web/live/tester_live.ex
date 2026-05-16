@@ -10,7 +10,7 @@ defmodule TestFlowPhxWeb.TesterLive do
   use TestFlowPhxWeb, :live_view
 
   alias TestFlowPhx.Domain.{Request, Response}
-  alias TestFlowPhx.UseCases.{SendRequest, Tabs}
+  alias TestFlowPhx.UseCases.{Collections, SendRequest, Tabs}
   alias TestFlowPhxWeb.RequestParams
   alias TestFlowPhxWeb.TesterComponents
 
@@ -29,6 +29,10 @@ defmodule TestFlowPhxWeb.TesterLive do
       |> assign(:request_subtab, :params)
       |> assign(:response_subtab, :body)
       |> assign(:sidebar_section, :collections)
+      |> assign(:collections, load_collections())
+      |> assign(:expanded_collections, MapSet.new())
+      |> assign(:editing_collection_id, nil)
+      |> assign(:save_modal, nil)
       |> put_active_view()
 
     {:ok, socket}
@@ -57,13 +61,15 @@ defmodule TestFlowPhxWeb.TesterLive do
             History
           </button>
         </div>
-        <p class="text-xs text-zinc-500 px-2 py-4">
-          <%= if @sidebar_section == :collections do %>
-            (vacío — añade colecciones en la Fase F)
-          <% else %>
-            (vacío — el historial aparece en la Fase G)
-          <% end %>
-        </p>
+        <%= if @sidebar_section == :collections do %>
+          <TesterComponents.collections_sidebar
+            collections={@collections}
+            expanded={@expanded_collections}
+            editing_id={@editing_collection_id}
+          />
+        <% else %>
+          <p class="text-xs text-zinc-500 px-2 py-4">(vacío — el historial aparece en la Fase G)</p>
+        <% end %>
       </aside>
 
       <main class="flex-1 flex flex-col min-w-0 p-4 gap-4 overflow-y-auto">
@@ -104,6 +110,12 @@ defmodule TestFlowPhxWeb.TesterLive do
           active={@response_subtab}
         />
       </main>
+
+      <TesterComponents.save_request_modal
+        :if={@save_modal}
+        state={@save_modal}
+        collections={@collections}
+      />
     </div>
     """
   end
@@ -312,6 +324,175 @@ defmodule TestFlowPhxWeb.TesterLive do
     end
   end
 
+  # ---------- Collections sidebar ----------
+
+  def handle_event("new_collection", %{"name" => name}, socket) do
+    case String.trim(name) do
+      "" ->
+        {:noreply, socket}
+
+      trimmed ->
+        try_repo(fn -> Collections.create(trimmed) end)
+        {:noreply, refresh_collections(socket)}
+    end
+  end
+
+  def handle_event("toggle_collection", %{"id" => id}, socket) do
+    expanded =
+      if MapSet.member?(socket.assigns.expanded_collections, id) do
+        MapSet.delete(socket.assigns.expanded_collections, id)
+      else
+        MapSet.put(socket.assigns.expanded_collections, id)
+      end
+
+    {:noreply, assign(socket, :expanded_collections, expanded)}
+  end
+
+  def handle_event("delete_collection", %{"id" => id}, socket) do
+    try_repo(fn -> Collections.delete(id) end)
+
+    socket =
+      socket
+      |> assign(:editing_collection_id, nil)
+      |> update(:expanded_collections, &MapSet.delete(&1, id))
+      |> refresh_collections()
+
+    {:noreply, socket}
+  end
+
+  def handle_event("start_rename_collection", %{"id" => id}, socket) do
+    {:noreply, assign(socket, :editing_collection_id, id)}
+  end
+
+  def handle_event("cancel_rename_collection", _params, socket) do
+    {:noreply, assign(socket, :editing_collection_id, nil)}
+  end
+
+  def handle_event("commit_rename_collection", %{"id" => id, "name" => name}, socket) do
+    case String.trim(name) do
+      "" ->
+        {:noreply, assign(socket, :editing_collection_id, nil)}
+
+      trimmed ->
+        try_repo(fn -> Collections.rename(id, trimmed) end)
+
+        socket =
+          socket
+          |> assign(:editing_collection_id, nil)
+          |> refresh_collections()
+
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event(
+        "open_request_in_tab",
+        %{"collection-id" => coll_id, "request-id" => req_id},
+        socket
+      ) do
+    with %{} = coll <- Enum.find(socket.assigns.collections, &(&1.id == coll_id)),
+         %Request{} = req <- Enum.find(coll.requests, &(&1.id == req_id)) do
+      tab = %{req | id: Request.new_id()}
+
+      socket =
+        socket
+        |> update(:tabs, &(&1 ++ [tab]))
+        |> assign(:active_tab_id, tab.id)
+        |> put_active_view()
+        |> save_tabs()
+
+      {:noreply, socket}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event(
+        "delete_request_from_collection",
+        %{"collection-id" => coll_id, "request-id" => req_id},
+        socket
+      ) do
+    try_repo(fn -> Collections.remove_request(coll_id, req_id) end)
+    {:noreply, refresh_collections(socket)}
+  end
+
+  # ---------- Save modal ----------
+
+  def handle_event("open_save_modal", _params, socket) do
+    target =
+      case socket.assigns.collections do
+        [first | _] -> first.id
+        [] -> :new
+      end
+
+    state = %{
+      name: default_request_name(socket.assigns.active_request),
+      target: target,
+      new_name: ""
+    }
+
+    {:noreply, assign(socket, :save_modal, state)}
+  end
+
+  def handle_event("close_save_modal", _params, socket) do
+    {:noreply, assign(socket, :save_modal, nil)}
+  end
+
+  def handle_event("update_save_modal", %{"save" => params}, socket) do
+    state = socket.assigns.save_modal || %{name: "", target: :new, new_name: ""}
+
+    new_state = %{
+      name: Map.get(params, "name", state.name),
+      target: parse_save_target(Map.get(params, "target")),
+      new_name: Map.get(params, "new_name", state.new_name)
+    }
+
+    {:noreply, assign(socket, :save_modal, new_state)}
+  end
+
+  def handle_event("commit_save", %{"save" => params}, socket) do
+    name = String.trim(Map.get(params, "name", ""))
+    target = parse_save_target(Map.get(params, "target"))
+    new_name = String.trim(Map.get(params, "new_name", ""))
+
+    cond do
+      name == "" ->
+        {:noreply, put_flash(socket, :error, "El nombre del request no puede estar vacío.")}
+
+      target == :new and new_name == "" ->
+        {:noreply, put_flash(socket, :error, "Indica un nombre para la nueva colección.")}
+
+      true ->
+        coll_id =
+          case target do
+            :new ->
+              created = try_repo(fn -> Collections.create(new_name) end)
+              if created, do: created.id, else: nil
+
+            id when is_binary(id) ->
+              id
+          end
+
+        if coll_id do
+          base = socket.assigns.active_request
+          req = %{base | id: Request.new_id(), name: name}
+          try_repo(fn -> Collections.add_request(coll_id, req) end)
+
+          socket =
+            socket
+            |> assign(:save_modal, nil)
+            |> update(:expanded_collections, &MapSet.put(&1, coll_id))
+            |> refresh_collections()
+            |> put_flash(:info, "Request guardada en la colección.")
+
+          {:noreply, socket}
+        else
+          {:noreply,
+           put_flash(socket, :error, "No se pudo guardar (¿storage detenido?).")}
+        end
+    end
+  end
+
   # ---------- Task results ----------
 
   @impl true
@@ -376,6 +557,29 @@ defmodule TestFlowPhxWeb.TesterLive do
   catch
     :exit, _ -> {[], nil}
   end
+
+  defp load_collections do
+    Collections.list()
+  catch
+    :exit, _ -> []
+  end
+
+  defp refresh_collections(socket), do: assign(socket, :collections, load_collections())
+
+  defp try_repo(fun) do
+    fun.()
+  catch
+    :exit, _ -> nil
+  end
+
+  defp parse_save_target("new"), do: :new
+  defp parse_save_target(nil), do: :new
+  defp parse_save_target(""), do: :new
+  defp parse_save_target(id) when is_binary(id), do: id
+
+  defp default_request_name(%{name: name}) when name not in [nil, "", "Untitled"], do: name
+  defp default_request_name(%{method: m, url: url}) when url != "", do: "#{m} #{url}"
+  defp default_request_name(_), do: "New Request"
 
   defp save_tabs(socket) do
     Tabs.save(socket.assigns.tabs, socket.assigns.active_tab_id)
