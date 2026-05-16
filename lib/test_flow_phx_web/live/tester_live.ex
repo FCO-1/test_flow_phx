@@ -241,6 +241,40 @@ defmodule TestFlowPhxWeb.TesterLive do
     {:noreply, socket}
   end
 
+  def handle_event("add_form_row", _params, socket) do
+    socket =
+      socket
+      |> update_active_tab(fn req ->
+        rows = (req.body_form || []) ++ [Request.empty_form_row()]
+        %{req | body_form: rows}
+      end)
+      |> save_tabs()
+
+    {:noreply, socket}
+  end
+
+  def handle_event("remove_form_row", %{"index" => idx_str}, socket) do
+    idx = String.to_integer(idx_str)
+
+    socket =
+      socket
+      |> update_active_tab(fn req ->
+        rows = req.body_form |> List.delete_at(idx)
+        %{req | body_form: rows}
+      end)
+      |> save_tabs()
+
+    {:noreply, socket}
+  end
+
+  def handle_event("add_kv_row", %{"field" => "body_form"}, socket) do
+    handle_event("add_form_row", %{}, socket)
+  end
+
+  def handle_event("remove_kv_row", %{"field" => "body_form", "index" => idx}, socket) do
+    handle_event("remove_form_row", %{"index" => idx}, socket)
+  end
+
   def handle_event("remove_kv_row", %{"field" => field, "index" => idx_str}, socket)
       when field in ["query_params", "headers"] do
     key = String.to_existing_atom(field)

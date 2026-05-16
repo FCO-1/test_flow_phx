@@ -113,6 +113,84 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
     end
   end
 
+  describe "body editors" do
+    test "form_urlencoded body subtab renders a kv editor over body_form after Add row", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view |> element("button", "Body") |> render_click()
+
+      view
+      |> form("#request-form", request: %{body_type: "form_urlencoded"})
+      |> render_change()
+
+      html = view |> element(~s|button[phx-click="add_kv_row"][phx-value-field="body_form"]|) |> render_click()
+
+      assert html =~ ~s(name="request[body_form][0][key])
+      assert html =~ ~s(name="request[body_form][0][value])
+      # The kv_editor for form_urlencoded does NOT emit the type select.
+      refute html =~ ~s(name="request[body_form][0][type])
+    end
+
+    test "multipart editor adds a row with the type select", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view |> element("button", "Body") |> render_click()
+
+      view
+      |> form("#request-form", request: %{body_type: "multipart"})
+      |> render_change()
+
+      html = view |> element(~s|button[phx-click="add_form_row"]|) |> render_click()
+
+      assert html =~ ~s(name="request[body_form][0][type])
+      assert html =~ ~s(<option value="text" selected)
+    end
+
+    test "multipart row switches to file_path input when type is file", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view |> element("button", "Body") |> render_click()
+
+      view
+      |> form("#request-form", request: %{body_type: "multipart"})
+      |> render_change()
+
+      view |> element(~s|button[phx-click="add_form_row"]|) |> render_click()
+
+      # Step 1: flip type=file (file_path input doesn't exist yet, only value does)
+      html =
+        view
+        |> form("#request-form",
+          request: %{
+            body_form: %{"0" => %{"enabled" => "true", "key" => "avatar", "type" => "file"}}
+          }
+        )
+        |> render_change()
+
+      assert html =~ ~s(name="request[body_form][0][file_path])
+      refute html =~ ~s(name="request[body_form][0][value])
+
+      # Step 2: now the file_path input exists — fill it
+      html2 =
+        view
+        |> form("#request-form",
+          request: %{
+            body_form: %{
+              "0" => %{
+                "enabled" => "true",
+                "key" => "avatar",
+                "type" => "file",
+                "file_path" => "/tmp/a.png"
+              }
+            }
+          }
+        )
+        |> render_change()
+
+      assert html2 =~ "/tmp/a.png"
+    end
+  end
+
   describe "tab bar" do
     test "mount seeds one Untitled tab and shows the new-tab button", %{conn: conn} do
       {:ok, _view, html} = live(conn, "/")

@@ -483,10 +483,10 @@ defmodule TestFlowPhxWeb.TesterComponents do
           </div>
 
         <% @request.body_type == :form_urlencoded -> %>
-          <p class="text-sm text-zinc-500 italic">Editor de form-urlencoded llega en Fase G.</p>
+          <.kv_editor rows={form_text_rows(@request.body_form)} field="body_form" />
 
         <% @request.body_type == :multipart -> %>
-          <p class="text-sm text-zinc-500 italic">Editor multipart llega en Fase G.</p>
+          <.multipart_editor rows={@request.body_form} />
 
         <% true -> %>
           <p class="text-sm text-zinc-500 italic">Sin body.</p>
@@ -494,6 +494,88 @@ defmodule TestFlowPhxWeb.TesterComponents do
     </div>
     """
   end
+
+  attr :rows, :list, required: true
+
+  def multipart_editor(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <p class="text-xs text-zinc-500 italic">
+        Los archivos se leen del disco en cada envío — escribe la ruta absoluta.
+      </p>
+
+      <div :for={{row, idx} <- Enum.with_index(@rows)} class="flex gap-2 items-center">
+        <input type="hidden" name={"request[body_form][#{idx}][enabled]"} value="false" />
+        <input
+          type="checkbox"
+          name={"request[body_form][#{idx}][enabled]"}
+          value="true"
+          checked={row.enabled}
+          class="rounded border-zinc-300"
+        />
+        <input
+          type="text"
+          name={"request[body_form][#{idx}][key]"}
+          value={row.key}
+          placeholder="field-name"
+          phx-debounce="200"
+          class="w-32 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+        />
+        <select
+          name={"request[body_form][#{idx}][type]"}
+          class="rounded-md border border-zinc-300 px-2 py-1 text-sm bg-white"
+        >
+          <option value="text" selected={row.type == :text}>Text</option>
+          <option value="file" selected={row.type == :file}>File</option>
+        </select>
+
+        <%= if row.type == :file do %>
+          <input
+            type="text"
+            name={"request[body_form][#{idx}][file_path]"}
+            value={row.file_path || ""}
+            placeholder="/absolute/path/to/file"
+            phx-debounce="200"
+            class="flex-1 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+          />
+        <% else %>
+          <input
+            type="text"
+            name={"request[body_form][#{idx}][value]"}
+            value={row.value}
+            placeholder="value"
+            phx-debounce="200"
+            class="flex-1 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+          />
+        <% end %>
+
+        <button
+          type="button"
+          phx-click="remove_form_row"
+          phx-value-index={idx}
+          class="text-zinc-400 hover:text-red-600 px-2"
+          aria-label="Remove row"
+        >×</button>
+      </div>
+
+      <button
+        type="button"
+        phx-click="add_form_row"
+        class="text-sm text-zinc-600 hover:text-zinc-900"
+      >
+        + Add row
+      </button>
+    </div>
+    """
+  end
+
+  defp form_text_rows(rows) when is_list(rows) do
+    Enum.map(rows, fn r ->
+      %{key: r.key, value: r.value, enabled: r.enabled}
+    end)
+  end
+
+  defp form_text_rows(_), do: []
 
   attr :request, Request, required: true
 

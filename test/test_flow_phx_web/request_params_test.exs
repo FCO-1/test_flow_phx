@@ -132,4 +132,60 @@ defmodule TestFlowPhxWeb.RequestParamsTest do
       assert out.auth == %{type: :bearer, token: "keep"}
     end
   end
+
+  describe "body_form rows" do
+    test "parses text rows preserving order", %{base: base} do
+      out =
+        RequestParams.from_form(
+          %{
+            "body_form" => %{
+              "0" => %{"key" => "first", "value" => "1", "enabled" => "true"},
+              "1" => %{"key" => "second", "value" => "2", "enabled" => "true"}
+            }
+          },
+          base
+        )
+
+      assert [
+               %{key: "first", value: "1", enabled: true, type: :text, file_path: nil},
+               %{key: "second", value: "2", enabled: true, type: :text, file_path: nil}
+             ] = out.body_form
+    end
+
+    test "parses file rows with file_path and type :file", %{base: base} do
+      out =
+        RequestParams.from_form(
+          %{
+            "body_form" => %{
+              "0" => %{
+                "key" => "avatar",
+                "type" => "file",
+                "file_path" => "/tmp/a.png",
+                "enabled" => "true"
+              }
+            }
+          },
+          base
+        )
+
+      assert [%{key: "avatar", type: :file, file_path: "/tmp/a.png", enabled: true}] =
+               out.body_form
+    end
+
+    test "missing body_form keeps base", %{base: base} do
+      base = %{base | body_form: [%{key: "x", value: "1", enabled: true, type: :text, file_path: nil}]}
+      out = RequestParams.from_form(%{"url" => "https://q/"}, base)
+      assert out.body_form == base.body_form
+    end
+
+    test "defaults type to :text and file_path to nil when omitted", %{base: base} do
+      out =
+        RequestParams.from_form(
+          %{"body_form" => %{"0" => %{"key" => "k", "value" => "v", "enabled" => "true"}}},
+          base
+        )
+
+      assert [%{type: :text, file_path: nil}] = out.body_form
+    end
+  end
 end

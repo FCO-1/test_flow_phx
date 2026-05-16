@@ -15,6 +15,7 @@ defmodule TestFlowPhxWeb.RequestParams do
   @body_types ~w(none json raw form_urlencoded multipart)
   @auth_types ~w(none bearer api_key)
   @auth_locations ~w(header query)
+  @row_types ~w(text file)
 
   @spec from_form(map(), Request.t()) :: Request.t()
   def from_form(params, %Request{} = base) when is_map(params) do
@@ -24,6 +25,7 @@ defmodule TestFlowPhxWeb.RequestParams do
         url: params["url"] || base.url,
         body_type: parse_atom(params["body_type"], @body_types, base.body_type),
         body_text: params["body_text"] || base.body_text,
+        body_form: parse_form_rows(params["body_form"]) || base.body_form,
         query_params: parse_rows(params["query_params"]) || base.query_params,
         headers: parse_rows(params["headers"]) || base.headers,
         auth: parse_auth(params["auth"], base.auth)
@@ -51,6 +53,24 @@ defmodule TestFlowPhxWeb.RequestParams do
   end
 
   defp parse_rows(_), do: nil
+
+  defp parse_form_rows(nil), do: nil
+
+  defp parse_form_rows(rows) when is_map(rows) do
+    rows
+    |> Enum.sort_by(fn {k, _} -> parse_index(k) end)
+    |> Enum.map(fn {_, r} ->
+      %{
+        key: r["key"] || "",
+        value: r["value"] || "",
+        enabled: parse_bool(r["enabled"]),
+        type: parse_atom(r["type"], @row_types, :text),
+        file_path: r["file_path"] || nil
+      }
+    end)
+  end
+
+  defp parse_form_rows(_), do: nil
 
   defp parse_index(k) when is_binary(k), do: String.to_integer(k)
   defp parse_index(k) when is_integer(k), do: k
