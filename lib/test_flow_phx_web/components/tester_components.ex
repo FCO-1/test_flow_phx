@@ -12,6 +12,55 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
   @methods ~w(GET POST PUT PATCH DELETE HEAD OPTIONS)
 
+  attr :tabs, :list, required: true
+  attr :active_id, :string, default: nil
+  attr :in_flight_tabs, :any, default: nil
+
+  def tab_bar(assigns) do
+    assigns =
+      assign_new(assigns, :in_flight_tabs, fn -> MapSet.new() end)
+
+    ~H"""
+    <div class="flex items-end gap-0.5 border-b border-zinc-200 overflow-x-auto">
+      <div
+        :for={tab <- @tabs}
+        class={[
+          "flex items-center rounded-t-md border-x border-t shrink-0",
+          if(tab.id == @active_id,
+            do: "bg-white border-zinc-300 -mb-px",
+            else: "bg-zinc-50 border-transparent hover:bg-zinc-100"
+          )
+        ]}
+      >
+        <button
+          type="button"
+          phx-click="select_tab"
+          phx-value-id={tab.id}
+          class="flex items-center gap-2 px-3 py-1.5 text-sm"
+          title={tab.url}
+        >
+          <span class={tab_method_class(tab.method)}>{tab.method}</span>
+          <span class="truncate max-w-[12rem]">{tab_label(tab)}</span>
+          <span :if={MapSet.member?(@in_flight_tabs, tab.id)} class="text-zinc-400 animate-pulse">●</span>
+        </button>
+        <button
+          type="button"
+          phx-click="close_tab"
+          phx-value-id={tab.id}
+          aria-label="Close tab"
+          class="px-2 py-1.5 text-zinc-400 hover:text-red-600 text-sm"
+        >×</button>
+      </div>
+      <button
+        type="button"
+        phx-click="new_tab"
+        aria-label="New tab"
+        class="px-3 py-1.5 text-zinc-500 hover:text-zinc-900 text-sm shrink-0"
+      >+</button>
+    </div>
+    """
+  end
+
   attr :request, Request, required: true
   attr :in_flight?, :boolean, default: false
 
@@ -389,6 +438,28 @@ defmodule TestFlowPhxWeb.TesterComponents do
   end
 
   defp format_size(_), do: "?"
+
+  defp tab_label(%{name: name, url: url}) do
+    cond do
+      is_binary(name) and name not in ["", "Untitled"] -> name
+      is_binary(url) and url != "" -> url
+      true -> "Untitled"
+    end
+  end
+
+  defp tab_method_class(method) do
+    family =
+      case method do
+        "GET" -> "text-emerald-700"
+        "POST" -> "text-sky-700"
+        "PUT" -> "text-amber-700"
+        "PATCH" -> "text-violet-700"
+        "DELETE" -> "text-red-700"
+        _ -> "text-zinc-700"
+      end
+
+    "text-xs font-mono font-bold " <> family
+  end
 
   defp pretty_json(term) do
     term

@@ -113,8 +113,151 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
     end
   end
 
+  describe "tab bar" do
+    test "mount seeds one Untitled tab and shows the new-tab button", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/")
+
+      assert html =~ "Untitled"
+      assert html =~ ~s(aria-label="New tab")
+      assert html =~ ~s(aria-label="Close tab")
+    end
+
+    test "new_tab appends a tab and makes it active", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "POST", url: "https://a.test/"})
+      |> render_change()
+
+      view |> element(~s|button[aria-label="New tab"]|) |> render_click()
+
+      html = render(view)
+
+      assert html =~ "https://a.test/"
+      assert tab_count(html) == 2
+      url_input_value = url_input(html)
+      assert url_input_value == ""
+    end
+
+    test "select_tab switches the active tab and restores its request", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "POST", url: "https://first.test/"})
+      |> render_change()
+
+      first_id = active_tab_id(render(view))
+
+      view |> element(~s|button[aria-label="New tab"]|) |> render_click()
+
+      view
+      |> form("#request-form", request: %{method: "GET", url: "https://second.test/"})
+      |> render_change()
+
+      second_id = active_tab_id(render(view))
+      assert second_id != first_id
+
+      view |> element(~s|button[phx-click="select_tab"][phx-value-id="#{first_id}"]|) |> render_click()
+      html = render(view)
+
+      assert url_input(html) == "https://first.test/"
+    end
+
+    test "close_tab removes the tab and picks a neighbour", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "GET", url: "https://first.test/"})
+      |> render_change()
+
+      view |> element(~s|button[aria-label="New tab"]|) |> render_click()
+
+      view
+      |> form("#request-form", request: %{method: "POST", url: "https://second.test/"})
+      |> render_change()
+
+      second_id = active_tab_id(render(view))
+
+      view
+      |> element(~s|button[phx-click="close_tab"][phx-value-id="#{second_id}"]|)
+      |> render_click()
+
+      html = render(view)
+
+      assert tab_count(html) == 1
+      assert url_input(html) == "https://first.test/"
+      refute html =~ "https://second.test/"
+    end
+
+    test "closing the last tab seeds a fresh Untitled", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "GET", url: "https://only.test/"})
+      |> render_change()
+
+      id = active_tab_id(render(view))
+
+      view |> element(~s|button[phx-click="close_tab"][phx-value-id="#{id}"]|) |> render_click()
+      html = render(view)
+
+      assert tab_count(html) == 1
+      assert url_input(html) == ""
+      assert html =~ "Untitled"
+    end
+
+    test "responses are stored per tab — switching tabs swaps the response panel", %{conn: conn} do
+      FakeHttpExecutor.stage(%Response{
+        status: 201,
+        headers: [{"content-type", "application/json"}],
+        body: ~s({"created":true}),
+        body_decoded: %{"created" => true},
+        duration_ms: 9,
+        size_bytes: 16
+      })
+
+      {:ok, view, _html} = live(conn, "/")
+
+      first_id = active_tab_id(render(view))
+
+      view
+      |> form("#request-form", request: %{method: "POST", url: "https://a.test/"})
+      |> render_submit()
+
+      _ = await_response(view)
+      assert render(view) =~ ">201<"
+
+      view |> element(~s|button[aria-label="New tab"]|) |> render_click()
+      html_b = render(view)
+
+      refute html_b =~ ">201<"
+      assert html_b =~ "No response yet"
+
+      view |> element(~s|button[phx-click="select_tab"][phx-value-id="#{first_id}"]|) |> render_click()
+      html_back = render(view)
+
+      assert html_back =~ ">201<"
+    end
+  end
+
   defp await_response(view) do
     Process.sleep(50)
     render(view)
+  end
+
+  defp active_tab_id(html) do
+    [_, id] = Regex.run(~r/name="active_tab_id" value="([^"]+)"/, html)
+    id
+  end
+
+  defp tab_count(html) do
+    Regex.scan(~r/phx-click="close_tab"/, html) |> length()
+  end
+
+  defp url_input(html) do
+    case Regex.run(~r/name="request\[url\]"\s+value="([^"]*)"/, html) do
+      [_, v] -> v
+      nil -> nil
+    end
   end
 end
