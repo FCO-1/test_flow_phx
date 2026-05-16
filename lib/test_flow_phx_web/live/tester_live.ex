@@ -165,11 +165,21 @@ defmodule TestFlowPhxWeb.TesterLive do
     end
   end
 
-  def handle_event("send", _params, socket) do
+  def handle_event("send", params, socket) do
     if socket.assigns.in_flight? do
       {:noreply, socket}
     else
-      request = socket.assigns.active_request
+      # Use submit params if present (covers the race where the user types
+      # and hits Send within the phx-debounce window — otherwise active_request
+      # may still hold the previous URL/method).
+      request =
+        case params do
+          %{"request" => form} ->
+            RequestParams.from_form(form, socket.assigns.active_request)
+
+          _ ->
+            socket.assigns.active_request
+        end
 
       task =
         Task.Supervisor.async_nolink(
@@ -179,6 +189,7 @@ defmodule TestFlowPhxWeb.TesterLive do
 
       socket =
         socket
+        |> assign(:active_request, request)
         |> assign(:in_flight?, true)
         |> assign(:response, nil)
         |> assign(:send_ref, task.ref)
