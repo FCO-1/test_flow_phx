@@ -69,5 +69,49 @@ defmodule TestFlowPhx.UseCases.SendRequestTest do
     assert response.error.type == :timeout
     assert history.response_error.type == :timeout
     assert is_nil(history.response_status)
+    assert is_nil(history.result_file)
+  end
+
+  describe "body persistence" do
+    test "writes the response body to disk and points result_file at it" do
+      FakeHttpExecutor.stage(%Response{
+        status: 200,
+        headers: [{"content-type", "application/json"}],
+        body: ~s({"persisted":true}),
+        body_decoded: %{"persisted" => true},
+        duration_ms: 4,
+        size_bytes: 18
+      })
+
+      req = Request.new(method: "GET", url: "https://example.test/save")
+      {_response, history} = SendRequest.execute(req)
+
+      assert is_binary(history.result_file)
+      assert String.ends_with?(history.result_file, ".json")
+      assert File.exists?(history.result_file)
+      assert File.read!(history.result_file) == ~s({"persisted":true})
+    end
+
+    test "skips persistence when persist_body? is false" do
+      FakeHttpExecutor.stage(%Response{
+        status: 200,
+        headers: [{"content-type", "application/json"}],
+        body: ~s({"x":1})
+      })
+
+      req = Request.new(method: "GET", url: "https://example.test/skip")
+      {_response, history} = SendRequest.execute(req, persist_body?: false)
+
+      assert is_nil(history.result_file)
+    end
+
+    test "skips persistence on empty body" do
+      FakeHttpExecutor.stage(%Response{status: 204, body: "", duration_ms: 1, size_bytes: 0})
+
+      req = Request.new(method: "DELETE", url: "https://example.test/x")
+      {_response, history} = SendRequest.execute(req)
+
+      assert is_nil(history.result_file)
+    end
   end
 end

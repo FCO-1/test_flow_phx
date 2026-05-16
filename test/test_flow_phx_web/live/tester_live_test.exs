@@ -32,7 +32,7 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
 
       assert view
              |> element("aside button", "History")
-             |> render_click() =~ "el historial aparece"
+             |> render_click() =~ "Sin historial"
     end
   end
 
@@ -361,6 +361,78 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
 
       reloaded = Collections.list() |> Enum.find(&(&1.id == coll.id))
       assert [%{name: "My Saved", url: "https://api.test/x", method: "POST"}] = reloaded.requests
+    end
+
+    test "sending a request adds an entry to the history sidebar", %{conn: conn} do
+      FakeHttpExecutor.stage(%Response{
+        status: 200,
+        headers: [{"content-type", "application/json"}],
+        body: ~s({"hello":"world"}),
+        body_decoded: %{"hello" => "world"},
+        duration_ms: 12,
+        size_bytes: 18
+      })
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "GET", url: "https://example.test/x"})
+      |> render_submit()
+
+      _ = await_response(view)
+
+      html = view |> element("aside button", "History") |> render_click()
+
+      assert html =~ "https://example.test/x"
+      refute html =~ "Sin historial"
+    end
+
+    test "open_history_in_tab spawns a new tab from the historical request", %{conn: conn} do
+      FakeHttpExecutor.stage(%Response{
+        status: 200,
+        headers: [{"content-type", "application/json"}],
+        body: ~s({"a":1}),
+        duration_ms: 3
+      })
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "POST", url: "https://api.test/users"})
+      |> render_submit()
+
+      _ = await_response(view)
+
+      view |> element("aside button", "History") |> render_click()
+
+      [entry | _] = TestFlowPhx.UseCases.History.list(10)
+
+      view
+      |> element(~s|button[phx-click="open_history_in_tab"][phx-value-id="#{entry.id}"]|)
+      |> render_click()
+
+      html = render(view)
+
+      assert tab_count(html) >= 2
+      assert html =~ "https://api.test/users"
+    end
+
+    test "clear_history empties the sidebar", %{conn: conn} do
+      FakeHttpExecutor.stage(%Response{status: 200, body: ~s({"x":1}), duration_ms: 1})
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "GET", url: "https://x.test/"})
+      |> render_submit()
+
+      _ = await_response(view)
+
+      view |> element("aside button", "History") |> render_click()
+      refute render(view) =~ "Sin historial"
+
+      view |> element(~s|button[phx-click="clear_history"]|) |> render_click()
+
+      assert render(view) =~ "Sin historial"
     end
 
     test "save modal creates a new collection inline when :new is chosen", %{conn: conn} do

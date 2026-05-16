@@ -9,6 +9,7 @@ defmodule TestFlowPhx.UseCases.SendRequest do
   """
 
   alias TestFlowPhx.Domain.{HistoryEntry, Request, Response}
+  alias TestFlowPhx.Infrastructure.Storage.Paths
 
   @spec execute(Request.t(), keyword()) :: {Response.t(), HistoryEntry.t() | nil}
   def execute(%Request{} = request, opts \\ []) do
@@ -16,7 +17,12 @@ defmodule TestFlowPhx.UseCases.SendRequest do
 
     history_entry =
       if Keyword.get(opts, :record_history?, true) do
-        entry = build_history_entry(request, response)
+        result_file =
+          if Keyword.get(opts, :persist_body?, true),
+            do: maybe_persist_body(response),
+            else: nil
+
+        entry = build_history_entry(request, response, result_file)
         maybe_append_history(entry)
         entry
       else
@@ -26,7 +32,7 @@ defmodule TestFlowPhx.UseCases.SendRequest do
     {response, history_entry}
   end
 
-  defp build_history_entry(%Request{} = request, %Response{} = response) do
+  defp build_history_entry(%Request{} = request, %Response{} = response, result_file) do
     %HistoryEntry{
       id: Request.new_id(),
       ran_at: DateTime.utc_now(),
@@ -34,9 +40,31 @@ defmodule TestFlowPhx.UseCases.SendRequest do
       response_status: response.status,
       response_duration_ms: response.duration_ms,
       response_size_bytes: response.size_bytes,
-      response_error: response.error
+      response_error: response.error,
+      result_file: result_file
     }
   end
+
+  defp maybe_persist_body(%Response{error: err}) when not is_nil(err), do: nil
+  defp maybe_persist_body(%Response{body: nil}), do: nil
+  defp maybe_persist_body(%Response{body: ""}), do: nil
+
+  defp maybe_persist_body(%Response{body: body, headers: headers}) when is_binary(body) do
+    content_type =
+      Enum.find_value(headers || [], fn
+        {"content-type", v} -> v
+        _ -> nil
+      end)
+
+    path = Paths.result_file_now(:rest, content_type)
+    File.mkdir_p!(Path.dirname(path))
+    File.write!(path, body)
+    path
+  rescue
+    _ -> nil
+  end
+
+  defp maybe_persist_body(_), do: nil
 
   defp maybe_append_history(entry) do
     repo = request_repo()

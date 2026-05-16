@@ -215,6 +215,56 @@ defmodule TestFlowPhxWeb.TesterComponents do
     """
   end
 
+  attr :history, :list, required: true
+
+  def history_sidebar(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs uppercase tracking-wide text-zinc-500 px-1">Recent</h3>
+        <button
+          :if={@history != []}
+          type="button"
+          phx-click="clear_history"
+          data-confirm="¿Borrar todo el historial?"
+          class="text-xs text-zinc-400 hover:text-red-600 px-1"
+        >
+          Clear
+        </button>
+      </div>
+
+      <p :if={@history == []} class="text-xs text-zinc-400 px-1 py-2 italic">
+        Sin historial todavía. Envía un request para verlo aquí.
+      </p>
+
+      <ul class="space-y-0.5">
+        <li :for={h <- @history} class="group">
+          <button
+            type="button"
+            phx-click="open_history_in_tab"
+            phx-value-id={h.id}
+            class="w-full text-left rounded px-1 py-1 hover:bg-zinc-100 flex flex-col gap-0.5"
+          >
+            <div class="flex items-center gap-2 text-xs">
+              <span class={tab_method_class((h.request || %{method: "?"}).method)}>
+                {(h.request || %{method: "?"}).method}
+              </span>
+              <span class={history_status_class(h.response_status, h.response_error)}>
+                {history_status_label(h.response_status, h.response_error)}
+              </span>
+              <span class="text-zinc-400 ml-auto">{h.response_duration_ms} ms</span>
+            </div>
+            <div class="text-xs text-zinc-700 truncate font-mono">
+              {(h.request || %{url: ""}).url}
+            </div>
+            <div class="text-[10px] text-zinc-400">{format_ran_at(h.ran_at)}</div>
+          </button>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
   attr :state, :map, required: true
   attr :collections, :list, required: true
 
@@ -657,6 +707,32 @@ defmodule TestFlowPhxWeb.TesterComponents do
       true -> "Untitled"
     end
   end
+
+  defp history_status_label(_, %{type: t}) when not is_nil(t), do: "ERR"
+  defp history_status_label(status, _) when is_integer(status), do: Integer.to_string(status)
+  defp history_status_label(_, _), do: "?"
+
+  defp history_status_class(_, %{type: _}),
+    do: "inline-flex items-center rounded-md px-1.5 text-[10px] font-mono font-semibold bg-red-100 text-red-700"
+
+  defp history_status_class(status, _) when is_integer(status),
+    do: status_pill_class(status) |> String.replace("px-2 py-0.5 text-xs", "px-1.5 text-[10px]")
+
+  defp history_status_class(_, _),
+    do: "inline-flex items-center rounded-md px-1.5 text-[10px] font-mono font-semibold bg-zinc-100 text-zinc-700"
+
+  defp format_ran_at(%DateTime{} = dt) do
+    diff = DateTime.diff(DateTime.utc_now(), dt, :second)
+
+    cond do
+      diff < 60 -> "hace #{diff}s"
+      diff < 3_600 -> "hace #{div(diff, 60)}min"
+      diff < 86_400 -> "hace #{div(diff, 3_600)}h"
+      true -> Calendar.strftime(dt, "%Y-%m-%d %H:%M")
+    end
+  end
+
+  defp format_ran_at(_), do: ""
 
   defp request_label(%{name: name, url: url}) do
     cond do

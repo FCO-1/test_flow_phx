@@ -10,7 +10,7 @@ defmodule TestFlowPhxWeb.TesterLive do
   use TestFlowPhxWeb, :live_view
 
   alias TestFlowPhx.Domain.{Request, Response}
-  alias TestFlowPhx.UseCases.{Collections, SendRequest, Tabs}
+  alias TestFlowPhx.UseCases.{Collections, History, SendRequest, Tabs}
   alias TestFlowPhxWeb.RequestParams
   alias TestFlowPhxWeb.TesterComponents
 
@@ -33,6 +33,7 @@ defmodule TestFlowPhxWeb.TesterLive do
       |> assign(:expanded_collections, MapSet.new())
       |> assign(:editing_collection_id, nil)
       |> assign(:save_modal, nil)
+      |> assign(:history, load_history())
       |> put_active_view()
 
     {:ok, socket}
@@ -68,7 +69,7 @@ defmodule TestFlowPhxWeb.TesterLive do
             editing_id={@editing_collection_id}
           />
         <% else %>
-          <p class="text-xs text-zinc-500 px-2 py-4">(vacío — el historial aparece en la Fase G)</p>
+          <TesterComponents.history_sidebar history={@history} />
         <% end %>
       </aside>
 
@@ -308,7 +309,7 @@ defmodule TestFlowPhxWeb.TesterLive do
       task =
         Task.Supervisor.async_nolink(
           TestFlowPhx.TaskSupervisor,
-          fn -> SendRequest.execute(request, record_history?: false) end
+          fn -> SendRequest.execute(request) end
         )
 
       socket =
@@ -493,6 +494,32 @@ defmodule TestFlowPhxWeb.TesterLive do
     end
   end
 
+  # ---------- History sidebar ----------
+
+  def handle_event("open_history_in_tab", %{"id" => id}, socket) do
+    case Enum.find(socket.assigns.history, &(&1.id == id)) do
+      %{request: %Request{} = req} when not is_nil(req) ->
+        tab = %{req | id: Request.new_id()}
+
+        socket =
+          socket
+          |> update(:tabs, &(&1 ++ [tab]))
+          |> assign(:active_tab_id, tab.id)
+          |> put_active_view()
+          |> save_tabs()
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("clear_history", _params, socket) do
+    try_repo(fn -> History.clear() end)
+    {:noreply, refresh_history(socket)}
+  end
+
   # ---------- Task results ----------
 
   @impl true
@@ -506,6 +533,7 @@ defmodule TestFlowPhxWeb.TesterLive do
           |> update(:in_flight_tabs, &MapSet.delete(&1, tab_id))
           |> update(:send_refs, &Map.delete(&1, ref))
           |> update(:responses, &Map.put(&1, tab_id, response))
+          |> refresh_history()
           |> put_active_view()
 
         {:noreply, socket}
@@ -565,6 +593,14 @@ defmodule TestFlowPhxWeb.TesterLive do
   end
 
   defp refresh_collections(socket), do: assign(socket, :collections, load_collections())
+
+  defp load_history do
+    History.list(50)
+  catch
+    :exit, _ -> []
+  end
+
+  defp refresh_history(socket), do: assign(socket, :history, load_history())
 
   defp try_repo(fun) do
     fun.()
