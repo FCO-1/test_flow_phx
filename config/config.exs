@@ -10,6 +10,12 @@ import Config
 config :test_flow_phx,
   generators: [timestamp_type: :utc_datetime]
 
+# DDD port wiring: bind domain port behaviours to their infrastructure adapters.
+# Use cases resolve these at runtime so the domain stays library-agnostic.
+config :test_flow_phx,
+  http_executor: TestFlowPhx.Infrastructure.Http.ReqExecutor,
+  request_repo: TestFlowPhx.Infrastructure.Storage.JsonFileRepo
+
 # Configures the endpoint
 config :test_flow_phx, TestFlowPhxWeb.Endpoint,
   url: [host: "localhost"],

@@ -35,3 +35,9 @@ test_flow_phx-*.tar
 npm-debug.log
 /assets/node_modules/
 /.elixir_ls
+/docs/
+/docs
+
+# Runtime persistence (collections, history, tabs). Folder tracked, contents ignored.
+/data/*
+!/data/.gitkeep

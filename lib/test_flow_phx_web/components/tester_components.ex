@@ -1,0 +1,852 @@
+defmodule TestFlowPhxWeb.TesterComponents do
+  @moduledoc """
+  Function components for the REST tester UI.
+
+  Stateless — each component receives the `%Request{}` / `%Response{}` it
+  needs and emits events the parent LiveView handles.
+  """
+
+  use Phoenix.Component
+
+  alias TestFlowPhx.Domain.{Collection, Request, Response}
+
+  @methods ~w(GET POST PUT PATCH DELETE HEAD OPTIONS)
+
+  attr :tabs, :list, required: true
+  attr :active_id, :string, default: nil
+  attr :in_flight_tabs, :any, default: nil
+
+  def tab_bar(assigns) do
+    assigns =
+      assign_new(assigns, :in_flight_tabs, fn -> MapSet.new() end)
+
+    ~H"""
+    <div class="flex items-end gap-0.5 border-b border-zinc-200 overflow-x-auto">
+      <div
+        :for={tab <- @tabs}
+        class={[
+          "flex items-center rounded-t-md border-x border-t shrink-0",
+          if(tab.id == @active_id,
+            do: "bg-white border-zinc-300 -mb-px",
+            else: "bg-zinc-50 border-transparent hover:bg-zinc-100"
+          )
+        ]}
+      >
+        <button
+          type="button"
+          phx-click="select_tab"
+          phx-value-id={tab.id}
+          class="flex items-center gap-2 px-3 py-1.5 text-sm"
+          title={tab.url}
+        >
+          <span class={tab_method_class(tab.method)}>{tab.method}</span>
+          <span class="truncate max-w-[12rem]">{tab_label(tab)}</span>
+          <span :if={MapSet.member?(@in_flight_tabs, tab.id)} class="text-zinc-400 animate-pulse">●</span>
+        </button>
+        <button
+          type="button"
+          phx-click="close_tab"
+          phx-value-id={tab.id}
+          aria-label="Close tab"
+          class="px-2 py-1.5 text-zinc-400 hover:text-red-600 text-sm"
+        >×</button>
+      </div>
+      <button
+        type="button"
+        phx-click="new_tab"
+        aria-label="New tab"
+        class="px-3 py-1.5 text-zinc-500 hover:text-zinc-900 text-sm shrink-0"
+      >+</button>
+    </div>
+    """
+  end
+
+  attr :request, Request, required: true
+  attr :in_flight?, :boolean, default: false
+
+  def method_url_bar(assigns) do
+    assigns = assign(assigns, :methods, @methods)
+
+    ~H"""
+    <div class="flex gap-2 items-center">
+      <select
+        name="request[method]"
+        class="rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm bg-white"
+      >
+        <option :for={m <- @methods} value={m} selected={m == @request.method}>{m}</option>
+      </select>
+      <input
+        type="text"
+        name="request[url]"
+        value={@request.url}
+        placeholder="https://api.example.com/endpoint"
+        phx-debounce="200"
+        autocomplete="off"
+        class="flex-1 rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
+      />
+      <button
+        type="button"
+        phx-click="open_save_modal"
+        class="rounded-md px-3 py-2 text-sm font-medium border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+      >
+        Save
+      </button>
+      <button
+        type="submit"
+        disabled={@in_flight?}
+        class={[
+          "rounded-md px-4 py-2 text-sm font-medium",
+          if(@in_flight?,
+            do: "bg-zinc-300 text-zinc-500 cursor-not-allowed",
+            else: "bg-zinc-900 text-white hover:bg-zinc-700"
+          )
+        ]}
+      >
+        {if(@in_flight?, do: "Sending…", else: "Send")}
+      </button>
+    </div>
+    """
+  end
+
+  attr :collections, :list, required: true
+  attr :expanded, :any, required: true
+  attr :editing_id, :string, default: nil
+
+  def collections_sidebar(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <form phx-submit="new_collection" class="flex gap-1">
+        <input
+          type="text"
+          name="name"
+          placeholder="+ New collection"
+          autocomplete="off"
+          class="flex-1 rounded-md border border-zinc-300 px-2 py-1 text-xs"
+        />
+      </form>
+
+      <p :if={@collections == []} class="text-xs text-zinc-400 px-1 py-2 italic">
+        Sin colecciones todavía.
+      </p>
+
+      <ul class="space-y-1">
+        <li :for={c <- @collections} class="text-sm">
+          <div class={[
+            "flex items-center gap-1 rounded px-1 py-0.5 group",
+            "hover:bg-zinc-100"
+          ]}>
+            <button
+              type="button"
+              phx-click="toggle_collection"
+              phx-value-id={c.id}
+              class="text-zinc-400 w-4 text-xs"
+              aria-label="Toggle collection"
+            >{if(MapSet.member?(@expanded, c.id), do: "▼", else: "▶")}</button>
+
+            <%= if @editing_id == c.id do %>
+              <form
+                phx-submit="commit_rename_collection"
+                phx-value-id={c.id}
+                class="flex-1"
+              >
+                <input
+                  type="text"
+                  name="name"
+                  value={c.name}
+                  autocomplete="off"
+                  phx-blur="cancel_rename_collection"
+                  phx-key="Escape"
+                  phx-keydown="cancel_rename_collection"
+                  class="w-full rounded border border-zinc-300 px-1 py-0.5 text-xs"
+                  id={"rename-input-" <> c.id}
+                  phx-mounted={Phoenix.LiveView.JS.focus()}
+                />
+              </form>
+            <% else %>
+              <button
+                type="button"
+                phx-click="start_rename_collection"
+                phx-value-id={c.id}
+                class="flex-1 text-left truncate"
+                title={"Rename " <> c.name}
+              >{c.name}</button>
+            <% end %>
+
+            <span class="text-xs text-zinc-400">{length(c.requests)}</span>
+
+            <button
+              type="button"
+              phx-click="delete_collection"
+              phx-value-id={c.id}
+              aria-label="Delete collection"
+              class="text-zinc-300 hover:text-red-600 px-1 invisible group-hover:visible"
+              data-confirm={"¿Borrar la colección \"" <> c.name <> "\"?"}
+            >×</button>
+          </div>
+
+          <ul :if={MapSet.member?(@expanded, c.id)} class="pl-6 space-y-0.5 mt-1">
+            <li :if={c.requests == []} class="text-xs text-zinc-400 italic py-1">
+              (vacía)
+            </li>
+            <li :for={r <- c.requests} class="flex items-center gap-1 group">
+              <button
+                type="button"
+                phx-click="open_request_in_tab"
+                phx-value-collection-id={c.id}
+                phx-value-request-id={r.id}
+                class="flex-1 flex items-center gap-2 text-left text-xs rounded px-1 py-0.5 hover:bg-zinc-100"
+              >
+                <span class={tab_method_class(r.method)}>{r.method}</span>
+                <span class="truncate">{request_label(r)}</span>
+              </button>
+              <button
+                type="button"
+                phx-click="delete_request_from_collection"
+                phx-value-collection-id={c.id}
+                phx-value-request-id={r.id}
+                aria-label="Delete request"
+                class="text-zinc-300 hover:text-red-600 px-1 invisible group-hover:visible text-xs"
+              >×</button>
+            </li>
+          </ul>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
+  attr :history, :list, required: true
+
+  def history_sidebar(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs uppercase tracking-wide text-zinc-500 px-1">Recent</h3>
+        <button
+          :if={@history != []}
+          type="button"
+          phx-click="clear_history"
+          data-confirm="¿Borrar todo el historial?"
+          class="text-xs text-zinc-400 hover:text-red-600 px-1"
+        >
+          Clear
+        </button>
+      </div>
+
+      <p :if={@history == []} class="text-xs text-zinc-400 px-1 py-2 italic">
+        Sin historial todavía. Envía un request para verlo aquí.
+      </p>
+
+      <ul class="space-y-0.5">
+        <li :for={h <- @history} class="group">
+          <button
+            type="button"
+            phx-click="open_history_in_tab"
+            phx-value-id={h.id}
+            class="w-full text-left rounded px-1 py-1 hover:bg-zinc-100 flex flex-col gap-0.5"
+          >
+            <div class="flex items-center gap-2 text-xs">
+              <span class={tab_method_class((h.request || %{method: "?"}).method)}>
+                {(h.request || %{method: "?"}).method}
+              </span>
+              <span class={history_status_class(h.response_status, h.response_error)}>
+                {history_status_label(h.response_status, h.response_error)}
+              </span>
+              <span class="text-zinc-400 ml-auto">{h.response_duration_ms} ms</span>
+            </div>
+            <div class="text-xs text-zinc-700 truncate font-mono">
+              {(h.request || %{url: ""}).url}
+            </div>
+            <div class="text-[10px] text-zinc-400">{format_ran_at(h.ran_at)}</div>
+          </button>
+        </li>
+      </ul>
+    </div>
+    """
+  end
+
+  attr :state, :map, required: true
+  attr :collections, :list, required: true
+
+  def save_request_modal(assigns) do
+    ~H"""
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40"
+      phx-click="close_save_modal"
+    >
+      <div
+        class="bg-white rounded-lg shadow-xl w-full max-w-md p-5"
+        phx-click-away="close_save_modal"
+        phx-window-keydown="close_save_modal"
+        phx-key="Escape"
+      >
+        <h2 class="text-base font-semibold text-zinc-800 mb-3">Guardar request</h2>
+
+        <form
+          id="save-request-form"
+          phx-change="update_save_modal"
+          phx-submit="commit_save"
+          class="space-y-3"
+        >
+          <div>
+            <label class="block text-xs text-zinc-500 mb-1">Nombre</label>
+            <input
+              type="text"
+              name="save[name]"
+              value={@state.name}
+              autocomplete="off"
+              phx-debounce="200"
+              autofocus
+              class="w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+            />
+          </div>
+
+          <div>
+            <label class="block text-xs text-zinc-500 mb-1">Colección</label>
+            <div class="space-y-1 max-h-40 overflow-y-auto rounded border border-zinc-200 p-2">
+              <label
+                :for={c <- @collections}
+                class="flex items-center gap-2 text-sm cursor-pointer"
+              >
+                <input
+                  type="radio"
+                  name="save[target]"
+                  value={c.id}
+                  checked={@state.target == c.id}
+                />
+                <span class="truncate">{c.name}</span>
+                <span class="text-xs text-zinc-400">({length(c.requests)})</span>
+              </label>
+              <label class="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="radio"
+                  name="save[target]"
+                  value="new"
+                  checked={@state.target == :new}
+                />
+                <em>+ Nueva colección</em>
+              </label>
+            </div>
+          </div>
+
+          <div :if={@state.target == :new}>
+            <label class="block text-xs text-zinc-500 mb-1">Nombre de la colección</label>
+            <input
+              type="text"
+              name="save[new_name]"
+              value={@state.new_name}
+              autocomplete="off"
+              phx-debounce="200"
+              class="w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+            />
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              phx-click="close_save_modal"
+              class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              class="rounded-md px-3 py-1.5 text-sm bg-zinc-900 text-white hover:bg-zinc-700"
+            >
+              Guardar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    """
+  end
+
+  attr :active, :atom, required: true
+
+  def request_subtabs(assigns) do
+    ~H"""
+    <div class="flex gap-1 border-b border-zinc-200">
+      <.subtab
+        :for={{label, key} <- [
+          {"Params", :params},
+          {"Headers", :headers},
+          {"Body", :body},
+          {"Auth", :auth}
+        ]}
+        label={label}
+        active?={@active == key}
+        click_event="set_request_subtab"
+        click_value={Atom.to_string(key)}
+      />
+    </div>
+    """
+  end
+
+  attr :rows, :list, required: true
+  attr :field, :string, required: true
+  attr :placeholder_key, :string, default: "key"
+  attr :placeholder_value, :string, default: "value"
+
+  def kv_editor(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <div :for={{row, idx} <- Enum.with_index(@rows)} class="flex gap-2 items-center">
+        <input type="hidden" name={"request[#{@field}][#{idx}][enabled]"} value="false" />
+        <input
+          type="checkbox"
+          name={"request[#{@field}][#{idx}][enabled]"}
+          value="true"
+          checked={row.enabled}
+          class="rounded border-zinc-300"
+        />
+        <input
+          type="text"
+          name={"request[#{@field}][#{idx}][key]"}
+          value={row.key}
+          placeholder={@placeholder_key}
+          phx-debounce="200"
+          class="flex-1 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+        />
+        <input
+          type="text"
+          name={"request[#{@field}][#{idx}][value]"}
+          value={row.value}
+          placeholder={@placeholder_value}
+          phx-debounce="200"
+          class="flex-1 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+        />
+        <button
+          type="button"
+          phx-click="remove_kv_row"
+          phx-value-field={@field}
+          phx-value-index={idx}
+          class="text-zinc-400 hover:text-red-600 px-2"
+          aria-label="Remove row"
+        >
+          ×
+        </button>
+      </div>
+      <button
+        type="button"
+        phx-click="add_kv_row"
+        phx-value-field={@field}
+        class="text-sm text-zinc-600 hover:text-zinc-900"
+      >
+        + Add row
+      </button>
+    </div>
+    """
+  end
+
+  attr :request, Request, required: true
+
+  def body_editor(assigns) do
+    ~H"""
+    <div class="space-y-3">
+      <div class="flex gap-4 items-center">
+        <label :for={{label, value} <- [
+          {"None", "none"},
+          {"JSON", "json"},
+          {"Raw", "raw"},
+          {"form-urlencoded", "form_urlencoded"},
+          {"Multipart", "multipart"}
+        ]} class="flex items-center gap-1.5 text-sm cursor-pointer">
+          <input
+            type="radio"
+            name="request[body_type]"
+            value={value}
+            checked={@request.body_type == String.to_existing_atom(value)}
+          />
+          {label}
+        </label>
+      </div>
+
+      <%= cond do %>
+        <% @request.body_type in [:json, :raw] -> %>
+          <div class="relative">
+            <textarea
+              name="request[body_text]"
+              rows="10"
+              phx-debounce="200"
+              class="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
+              placeholder={if @request.body_type == :json, do: ~s({"key":"value"}), else: "raw body"}
+            >{@request.body_text}</textarea>
+            <button
+              :if={@request.body_type == :json}
+              type="button"
+              phx-click="format_json"
+              class="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200"
+            >
+              Format
+            </button>
+          </div>
+
+        <% @request.body_type == :form_urlencoded -> %>
+          <.kv_editor rows={form_text_rows(@request.body_form)} field="body_form" />
+
+        <% @request.body_type == :multipart -> %>
+          <.multipart_editor rows={@request.body_form} />
+
+        <% true -> %>
+          <p class="text-sm text-zinc-500 italic">Sin body.</p>
+      <% end %>
+    </div>
+    """
+  end
+
+  attr :rows, :list, required: true
+
+  def multipart_editor(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <p class="text-xs text-zinc-500 italic">
+        Los archivos se leen del disco en cada envío — escribe la ruta absoluta.
+      </p>
+
+      <div :for={{row, idx} <- Enum.with_index(@rows)} class="flex gap-2 items-center">
+        <input type="hidden" name={"request[body_form][#{idx}][enabled]"} value="false" />
+        <input
+          type="checkbox"
+          name={"request[body_form][#{idx}][enabled]"}
+          value="true"
+          checked={row.enabled}
+          class="rounded border-zinc-300"
+        />
+        <input
+          type="text"
+          name={"request[body_form][#{idx}][key]"}
+          value={row.key}
+          placeholder="field-name"
+          phx-debounce="200"
+          class="w-32 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+        />
+        <select
+          name={"request[body_form][#{idx}][type]"}
+          class="rounded-md border border-zinc-300 px-2 py-1 text-sm bg-white"
+        >
+          <option value="text" selected={row.type == :text}>Text</option>
+          <option value="file" selected={row.type == :file}>File</option>
+        </select>
+
+        <%= if row.type == :file do %>
+          <input
+            type="text"
+            name={"request[body_form][#{idx}][file_path]"}
+            value={row.file_path || ""}
+            placeholder="/absolute/path/to/file"
+            phx-debounce="200"
+            class="flex-1 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+          />
+        <% else %>
+          <input
+            type="text"
+            name={"request[body_form][#{idx}][value]"}
+            value={row.value}
+            placeholder="value"
+            phx-debounce="200"
+            class="flex-1 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+          />
+        <% end %>
+
+        <button
+          type="button"
+          phx-click="remove_form_row"
+          phx-value-index={idx}
+          class="text-zinc-400 hover:text-red-600 px-2"
+          aria-label="Remove row"
+        >×</button>
+      </div>
+
+      <button
+        type="button"
+        phx-click="add_form_row"
+        class="text-sm text-zinc-600 hover:text-zinc-900"
+      >
+        + Add row
+      </button>
+    </div>
+    """
+  end
+
+  defp form_text_rows(rows) when is_list(rows) do
+    Enum.map(rows, fn r ->
+      %{key: r.key, value: r.value, enabled: r.enabled}
+    end)
+  end
+
+  defp form_text_rows(_), do: []
+
+  attr :request, Request, required: true
+
+  def auth_editor(assigns) do
+    ~H"""
+    <div class="space-y-3">
+      <div class="flex gap-4 items-center">
+        <label :for={{label, value} <- [
+          {"None", "none"},
+          {"Bearer", "bearer"},
+          {"API Key", "api_key"}
+        ]} class="flex items-center gap-1.5 text-sm cursor-pointer">
+          <input
+            type="radio"
+            name="request[auth][type]"
+            value={value}
+            checked={@request.auth.type == String.to_existing_atom(value)}
+          />
+          {label}
+        </label>
+      </div>
+
+      <%= case @request.auth.type do %>
+        <% :bearer -> %>
+          <input
+            type="text"
+            name="request[auth][token]"
+            value={Map.get(@request.auth, :token, "")}
+            placeholder="token"
+            phx-debounce="200"
+            class="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
+          />
+
+        <% :api_key -> %>
+          <div class="space-y-2">
+            <input
+              type="text"
+              name="request[auth][key]"
+              value={Map.get(@request.auth, :key, "")}
+              placeholder="header or query name (e.g. X-Api-Key)"
+              phx-debounce="200"
+              class="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
+            />
+            <input
+              type="text"
+              name="request[auth][value]"
+              value={Map.get(@request.auth, :value, "")}
+              placeholder="value"
+              phx-debounce="200"
+              class="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
+            />
+            <div class="flex gap-3 text-sm">
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="request[auth][in]"
+                  value="header"
+                  checked={Map.get(@request.auth, :in) == :header}
+                />
+                Header
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer">
+                <input
+                  type="radio"
+                  name="request[auth][in]"
+                  value="query"
+                  checked={Map.get(@request.auth, :in) == :query}
+                />
+                Query
+              </label>
+            </div>
+          </div>
+
+        <% _ -> %>
+          <p class="text-sm text-zinc-500 italic">Sin autenticación.</p>
+      <% end %>
+    </div>
+    """
+  end
+
+  attr :response, :any, default: nil
+  attr :in_flight?, :boolean, default: false
+  attr :active, :atom, default: :body
+
+  def response_panel(assigns) do
+    ~H"""
+    <div class="rounded-lg border border-zinc-200 bg-white">
+      <%= cond do %>
+        <% @in_flight? -> %>
+          <div class="p-6">
+            <p class="text-sm text-zinc-500 animate-pulse">Sending request…</p>
+          </div>
+
+        <% is_nil(@response) -> %>
+          <div class="p-6">
+            <p class="text-sm text-zinc-400">No response yet — click Send to fire a request.</p>
+          </div>
+
+        <% @response.error -> %>
+          <div class="p-6 space-y-2">
+            <p class="text-sm font-medium text-red-600">
+              Error: <span class="font-mono">{@response.error.type}</span>
+            </p>
+            <p class="text-sm text-zinc-700 font-mono break-all">{@response.error.message}</p>
+            <p class="text-xs text-zinc-500">Duration: {@response.duration_ms} ms</p>
+          </div>
+
+        <% true -> %>
+          <header class="flex items-center justify-between px-4 py-2 border-b border-zinc-200">
+            <div class="flex gap-3 items-center text-sm">
+              <span class={status_pill_class(@response.status)}>{@response.status}</span>
+              <span class="text-zinc-500">{@response.duration_ms} ms</span>
+              <span class="text-zinc-500">{format_size(@response.size_bytes)}</span>
+            </div>
+          </header>
+          <div class="flex gap-1 px-4 py-1 border-b border-zinc-200">
+            <.subtab
+              :for={{label, key} <- [{"Body", :body}, {"Headers", :headers}, {"Raw", :raw}]}
+              label={label}
+              active?={@active == key}
+              click_event="set_response_subtab"
+              click_value={Atom.to_string(key)}
+            />
+          </div>
+          <div class="p-4 overflow-auto max-h-96">
+            <%= case @active do %>
+              <% :body -> %>
+                <%= if @response.body_decoded do %>
+                  <pre class="text-xs font-mono whitespace-pre-wrap text-zinc-800">{pretty_json(@response.body_decoded)}</pre>
+                <% else %>
+                  <pre class="text-xs font-mono whitespace-pre-wrap text-zinc-800">{@response.body}</pre>
+                <% end %>
+
+              <% :headers -> %>
+                <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-xs font-mono">
+                  <%= for {k, v} <- @response.headers do %>
+                    <dt class="text-zinc-500">{k}</dt>
+                    <dd class="text-zinc-800 break-all">{v}</dd>
+                  <% end %>
+                </dl>
+
+              <% :raw -> %>
+                <pre class="text-xs font-mono whitespace-pre-wrap text-zinc-800">{@response.body}</pre>
+            <% end %>
+          </div>
+      <% end %>
+    </div>
+    """
+  end
+
+  # ---------- private helpers ----------
+
+  attr :label, :string, required: true
+  attr :active?, :boolean, required: true
+  attr :click_event, :string, required: true
+  attr :click_value, :string, required: true
+
+  defp subtab(assigns) do
+    ~H"""
+    <button
+      type="button"
+      phx-click={@click_event}
+      phx-value-subtab={@click_value}
+      class={[
+        "px-3 py-1.5 text-sm rounded-md transition-colors",
+        if(@active?,
+          do: "bg-zinc-100 text-zinc-900 font-medium",
+          else: "text-zinc-500 hover:text-zinc-800"
+        )
+      ]}
+    >
+      {@label}
+    </button>
+    """
+  end
+
+  defp status_pill_class(status) when is_integer(status) do
+    family =
+      cond do
+        status >= 200 and status < 300 -> "bg-emerald-100 text-emerald-700"
+        status >= 300 and status < 400 -> "bg-sky-100 text-sky-700"
+        status >= 400 and status < 500 -> "bg-amber-100 text-amber-700"
+        status >= 500 -> "bg-red-100 text-red-700"
+        true -> "bg-zinc-100 text-zinc-700"
+      end
+
+    "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-mono font-semibold " <>
+      family
+  end
+
+  defp status_pill_class(_),
+    do:
+      "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-mono font-semibold bg-zinc-100 text-zinc-700"
+
+  defp format_size(bytes) when is_integer(bytes) and bytes < 1024, do: "#{bytes} B"
+
+  defp format_size(bytes) when is_integer(bytes) and bytes < 1_048_576 do
+    "#{Float.round(bytes / 1024, 1)} KB"
+  end
+
+  defp format_size(bytes) when is_integer(bytes) do
+    "#{Float.round(bytes / 1_048_576, 1)} MB"
+  end
+
+  defp format_size(_), do: "?"
+
+  defp tab_label(%{name: name, url: url}) do
+    cond do
+      is_binary(name) and name not in ["", "Untitled"] -> name
+      is_binary(url) and url != "" -> url
+      true -> "Untitled"
+    end
+  end
+
+  defp history_status_label(_, %{type: t}) when not is_nil(t), do: "ERR"
+  defp history_status_label(status, _) when is_integer(status), do: Integer.to_string(status)
+  defp history_status_label(_, _), do: "?"
+
+  defp history_status_class(_, %{type: _}),
+    do: "inline-flex items-center rounded-md px-1.5 text-[10px] font-mono font-semibold bg-red-100 text-red-700"
+
+  defp history_status_class(status, _) when is_integer(status),
+    do: status_pill_class(status) |> String.replace("px-2 py-0.5 text-xs", "px-1.5 text-[10px]")
+
+  defp history_status_class(_, _),
+    do: "inline-flex items-center rounded-md px-1.5 text-[10px] font-mono font-semibold bg-zinc-100 text-zinc-700"
+
+  defp format_ran_at(%DateTime{} = dt) do
+    diff = DateTime.diff(DateTime.utc_now(), dt, :second)
+
+    cond do
+      diff < 60 -> "hace #{diff}s"
+      diff < 3_600 -> "hace #{div(diff, 60)}min"
+      diff < 86_400 -> "hace #{div(diff, 3_600)}h"
+      true -> Calendar.strftime(dt, "%Y-%m-%d %H:%M")
+    end
+  end
+
+  defp format_ran_at(_), do: ""
+
+  defp request_label(%{name: name, url: url}) do
+    cond do
+      is_binary(name) and name not in ["", "Untitled"] -> name
+      is_binary(url) and url != "" -> url
+      true -> "Untitled"
+    end
+  end
+
+  # Discourage unused alias warnings while keeping aliases for typespecs.
+  _ = Collection
+
+  defp tab_method_class(method) do
+    family =
+      case method do
+        "GET" -> "text-emerald-700"
+        "POST" -> "text-sky-700"
+        "PUT" -> "text-amber-700"
+        "PATCH" -> "text-violet-700"
+        "DELETE" -> "text-red-700"
+        _ -> "text-zinc-700"
+      end
+
+    "text-xs font-mono font-bold " <> family
+  end
+
+  defp pretty_json(term) do
+    term
+    |> Jason.encode_to_iodata!(pretty: true)
+    |> IO.iodata_to_binary()
+  end
+
+  # Discourage unused alias warnings while keeping the alias for typespecs.
+  _ = Response
+end
