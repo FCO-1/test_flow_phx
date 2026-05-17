@@ -74,7 +74,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
     <div class="flex gap-2 items-center">
       <select
         name="request[method]"
-        class="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm bg-white dark:bg-zinc-900"
+        class="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm bg-white dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
       >
         <option :for={m <- @methods} value={m} selected={m == @request.method}>{m}</option>
       </select>
@@ -85,7 +85,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
         placeholder="https://api.example.com/endpoint"
         phx-debounce="200"
         autocomplete="off"
-        class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
+        class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
       />
       <button
         type="button"
@@ -178,7 +178,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           "px-2 py-1 rounded transition-colors",
           if(@theme == value,
             do: "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900",
-            else: "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100  dark:text-zinc-500  "
+            else: "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 dark:text-zinc-500"
           )
         ]}
       >
@@ -201,7 +201,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           name="name"
           placeholder="+ New collection"
           autocomplete="off"
-          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs"
+          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
         />
       </form>
 
@@ -237,7 +237,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
                   phx-blur="cancel_rename_collection"
                   phx-key="Escape"
                   phx-keydown="cancel_rename_collection"
-                  class="w-full rounded border border-zinc-300 dark:border-zinc-700 px-1 py-0.5 text-xs"
+                  class="w-full rounded border border-zinc-300 dark:border-zinc-700 px-1 py-0.5 text-xs dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                   id={"rename-input-" <> c.id}
                   phx-mounted={Phoenix.LiveView.JS.focus()}
                 />
@@ -377,7 +377,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               autocomplete="off"
               phx-debounce="200"
               autofocus
-              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
           </div>
 
@@ -417,7 +417,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               value={@state.new_name}
               autocomplete="off"
               phx-debounce="200"
-              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
           </div>
 
@@ -486,7 +486,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           value={row.key}
           placeholder={@placeholder_key}
           phx-debounce="200"
-          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
+          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
         />
         <input
           type="text"
@@ -494,7 +494,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           value={row.value}
           placeholder={@placeholder_value}
           phx-debounce="200"
-          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
+          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
         />
         <button
           type="button"
@@ -549,14 +549,14 @@ defmodule TestFlowPhxWeb.TesterComponents do
               name="request[body_text]"
               rows="10"
               phx-debounce="200"
-              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
               placeholder={if @request.body_type == :json, do: ~s({"key":"value"}), else: "raw body"}
             >{@request.body_text}</textarea>
             <button
               :if={@request.body_type == :json}
               type="button"
               phx-click="format_json"
-              class="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200"
+              class="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-600"
             >
               Format
             </button>
@@ -599,11 +599,11 @@ defmodule TestFlowPhxWeb.TesterComponents do
           value={row.key}
           placeholder="field-name"
           phx-debounce="200"
-          class="w-32 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
+          class="w-32 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
         />
         <select
           name={"request[body_form][#{idx}][type]"}
-          class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-sm bg-white dark:bg-zinc-900"
+          class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-sm bg-white dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
         >
           <option value="text" selected={row.type == :text}>Text</option>
           <option value="file" selected={row.type == :file}>File</option>
@@ -616,7 +616,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             value={row.file_path || ""}
             placeholder="/absolute/path/to/file"
             phx-debounce="200"
-            class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
+            class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
           />
         <% else %>
           <input
@@ -625,7 +625,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             value={row.value}
             placeholder="value"
             phx-debounce="200"
-            class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
+            class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
           />
         <% end %>
 
@@ -686,7 +686,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             value={Map.get(@request.auth, :token, "")}
             placeholder="token"
             phx-debounce="200"
-            class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
+            class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
           />
 
         <% :api_key -> %>
@@ -697,7 +697,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               value={Map.get(@request.auth, :key, "")}
               placeholder="header or query name (e.g. X-Api-Key)"
               phx-debounce="200"
-              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
             <input
               type="text"
@@ -705,7 +705,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               value={Map.get(@request.auth, :value, "")}
               placeholder="value"
               phx-debounce="200"
-              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
             <div class="flex gap-3 text-sm">
               <label class="flex items-center gap-1.5 cursor-pointer">

@@ -835,9 +835,9 @@ defmodule TestFlowPhxWeb.TesterLive do
     base = "px-3 py-1.5 text-sm rounded-md transition-colors"
 
     if active? do
-      base <> " bg-white dark:bg-zinc-900 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 font-medium"
+      base <> "bg-white dark:bg-zinc-900 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 font-medium"
     else
-      base <> " text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
+      base <> "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
     end
   end
 end
