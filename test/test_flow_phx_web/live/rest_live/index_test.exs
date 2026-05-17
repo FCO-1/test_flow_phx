@@ -1,4 +1,4 @@
-defmodule TestFlowPhxWeb.TesterLiveTest do
+defmodule TestFlowPhxWeb.RestLive.IndexTest do
   use TestFlowPhxWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
