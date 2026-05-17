@@ -35,6 +35,7 @@ defmodule TestFlowPhxWeb.TesterLive do
       |> assign(:save_modal, nil)
       |> assign(:history, load_history())
       |> assign(:curl_copied?, false)
+      |> assign(:theme, :system)
       |> put_active_view()
 
     {:ok, socket}
@@ -43,8 +44,8 @@ defmodule TestFlowPhxWeb.TesterLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex h-[calc(100vh-4rem)] gap-0 -mx-4" phx-window-keydown="hotkey">
-      <aside class="w-64 shrink-0 border-r border-zinc-200 bg-zinc-50 p-3 overflow-y-auto">
+    <div class="flex h-[calc(100vh-4rem)] gap-0 -mx-4 dark:text-zinc-100" phx-window-keydown="hotkey">
+      <aside class="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3 overflow-y-auto flex flex-col">
         <div class="flex gap-1 mb-3">
           <button
             type="button"
@@ -63,15 +64,20 @@ defmodule TestFlowPhxWeb.TesterLive do
             History
           </button>
         </div>
-        <%= if @sidebar_section == :collections do %>
-          <TesterComponents.collections_sidebar
-            collections={@collections}
-            expanded={@expanded_collections}
-            editing_id={@editing_collection_id}
-          />
-        <% else %>
-          <TesterComponents.history_sidebar history={@history} />
-        <% end %>
+        <div class="flex-1 min-h-0">
+          <%= if @sidebar_section == :collections do %>
+            <TesterComponents.collections_sidebar
+              collections={@collections}
+              expanded={@expanded_collections}
+              editing_id={@editing_collection_id}
+            />
+          <% else %>
+            <TesterComponents.history_sidebar history={@history} />
+          <% end %>
+        </div>
+        <div class="pt-3 mt-3 border-t border-zinc-200 dark:border-zinc-800 flex justify-center">
+          <TesterComponents.theme_toggle theme={@theme} />
+        </div>
       </aside>
 
       <main class="flex-1 flex flex-col min-w-0 p-4 gap-4 overflow-y-auto">
@@ -89,7 +95,7 @@ defmodule TestFlowPhxWeb.TesterLive do
             curl_copied?={@curl_copied?}
           />
           <TesterComponents.request_subtabs active={@request_subtab} />
-          <div class="rounded-lg border border-zinc-200 bg-white p-4 min-h-[12rem]">
+          <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 min-h-[12rem]">
             <%= case @request_subtab do %>
               <% :params -> %>
                 <TesterComponents.kv_editor
@@ -362,6 +368,23 @@ defmodule TestFlowPhxWeb.TesterLive do
 
       {:noreply, socket}
     end
+  end
+
+  # ---------- Theme ----------
+
+  def handle_event("theme:current", %{"theme" => t}, socket) do
+    {:noreply, assign(socket, :theme, parse_theme(t))}
+  end
+
+  def handle_event("set_theme", %{"theme" => t}, socket) do
+    theme = parse_theme(t)
+
+    socket =
+      socket
+      |> assign(:theme, theme)
+      |> push_event("theme:set", %{theme: Atom.to_string(theme)})
+
+    {:noreply, socket}
   end
 
   # ---------- Keyboard shortcuts ----------
@@ -687,6 +710,10 @@ defmodule TestFlowPhxWeb.TesterLive do
     :exit, _ -> nil
   end
 
+  defp parse_theme("light"), do: :light
+  defp parse_theme("dark"), do: :dark
+  defp parse_theme(_), do: :system
+
   defp classify_hotkey(%{"key" => key} = p) do
     ctrl_or_meta = truthy(p["ctrlKey"]) or truthy(p["metaKey"])
     alt = truthy(p["altKey"])
@@ -776,9 +803,9 @@ defmodule TestFlowPhxWeb.TesterLive do
     base = "px-3 py-1.5 text-sm rounded-md transition-colors"
 
     if active? do
-      base <> " bg-white border border-zinc-200 text-zinc-900 font-medium"
+      base <> " bg-white dark:bg-zinc-900 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 font-medium"
     else
-      base <> " text-zinc-500 hover:text-zinc-800"
+      base <> " text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
     end
   end
 end

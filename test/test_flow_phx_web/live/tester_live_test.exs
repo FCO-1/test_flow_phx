@@ -539,6 +539,34 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
     render(view)
   end
 
+  describe "theme toggle" do
+    test "mount defaults to :system and renders the three-option control", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/")
+      assert html =~ ~s(id="theme-toggle")
+      assert html =~ ~s(phx-value-theme="light")
+      assert html =~ ~s(phx-value-theme="system")
+      assert html =~ ~s(phx-value-theme="dark")
+    end
+
+    test "theme:current hook event updates the assign", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+      html = render_hook(view, "theme:current", %{"theme" => "dark"})
+      # Active option for :dark gets the active-bg styling.
+      assert html =~ ~r/phx-value-theme="dark"[^>]*class="[^"]*bg-zinc-900/
+    end
+
+    test "set_theme pushes the theme to the JS hook and updates the assign", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element(~s|button[phx-value-theme="light"]|)
+      |> render_click()
+
+      assert_push_event(view, "theme:set", %{theme: "light"})
+      assert render(view) =~ ~r/phx-value-theme="light"[^>]*class="[^"]*bg-zinc-900/
+    end
+  end
+
   describe "keyboard shortcuts" do
     test "Ctrl+Enter submits the active request", %{conn: conn} do
       FakeHttpExecutor.stage(%Response{
