@@ -343,6 +343,24 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
       refute html =~ "Sin colecciones"
     end
 
+    test "clear_collections empties the sidebar", %{conn: conn} do
+      Collections.create("One")
+      Collections.create("Two")
+
+      {:ok, view, html} = live(conn, "/")
+      assert html =~ "One"
+      assert html =~ "Two"
+
+      html_after =
+        view
+        |> element(~s|button[phx-click="clear_collections"]|)
+        |> render_click()
+
+      refute html_after =~ "One"
+      refute html_after =~ "Two"
+      assert html_after =~ "Sin colecciones"
+    end
+
     test "new_collection creates and lists it", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 

@@ -487,6 +487,18 @@ defmodule TestFlowPhxWeb.TesterLive do
     {:noreply, socket}
   end
 
+  def handle_event("clear_collections", _params, socket) do
+    try_repo(fn -> Collections.clear() end)
+
+    socket =
+      socket
+      |> assign(:editing_collection_id, nil)
+      |> assign(:expanded_collections, MapSet.new())
+      |> refresh_collections()
+
+    {:noreply, socket}
+  end
+
   def handle_event("start_rename_collection", %{"id" => id}, socket) do
     {:noreply, assign(socket, :editing_collection_id, id)}
   end

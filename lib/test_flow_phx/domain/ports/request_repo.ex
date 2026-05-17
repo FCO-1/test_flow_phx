@@ -12,6 +12,7 @@ defmodule TestFlowPhx.Domain.Ports.RequestRepo do
   @callback list_collections() :: [Collection.t()]
   @callback upsert_collection(Collection.t()) :: :ok
   @callback delete_collection(String.t()) :: :ok
+  @callback clear_collections() :: :ok
 
   @callback upsert_request_in(String.t(), Request.t()) :: :ok
   @callback delete_request_in(String.t(), String.t()) :: :ok

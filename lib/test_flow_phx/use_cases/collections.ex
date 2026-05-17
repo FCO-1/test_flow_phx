@@ -30,6 +30,9 @@ defmodule TestFlowPhx.UseCases.Collections do
   def delete(collection_id) when is_binary(collection_id),
     do: repo().delete_collection(collection_id)
 
+  @spec clear() :: :ok
+  def clear, do: repo().clear_collections()
+
   @spec add_request(String.t(), Request.t()) :: Request.t()
   def add_request(collection_id, %Request{} = req) when is_binary(collection_id) do
     req = if req.id in [nil, ""], do: %{req | id: Request.new_id()}, else: req

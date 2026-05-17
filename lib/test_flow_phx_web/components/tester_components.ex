@@ -195,6 +195,19 @@ defmodule TestFlowPhxWeb.TesterComponents do
   def collections_sidebar(assigns) do
     ~H"""
     <div class="space-y-2">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 px-1">Saved</h3>
+        <button
+          :if={@collections != []}
+          type="button"
+          phx-click="clear_collections"
+          data-confirm="¿Borrar todas las colecciones? Esta acción no se puede deshacer."
+          class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-red-600 px-1"
+        >
+          Clear
+        </button>
+      </div>
+
       <form phx-submit="new_collection" class="flex gap-1">
         <input
           type="text"

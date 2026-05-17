@@ -47,6 +47,9 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
     do: GenServer.call(__MODULE__, {:delete_collection, id})
 
   @impl true
+  def clear_collections, do: GenServer.call(__MODULE__, :clear_collections)
+
+  @impl true
   def upsert_request_in(collection_id, %Request{} = r) when is_binary(collection_id),
     do: GenServer.call(__MODULE__, {:upsert_request_in, collection_id, r})
 
@@ -146,6 +149,11 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
   def handle_call({:delete_collection, id}, _from, state) do
     new_collections = Enum.reject(state.collections, &(&1.id == id))
     state = %{state | collections: new_collections} |> mark_dirty()
+    {:reply, :ok, state}
+  end
+
+  def handle_call(:clear_collections, _from, state) do
+    state = %{state | collections: []} |> mark_dirty()
     {:reply, :ok, state}
   end
 
