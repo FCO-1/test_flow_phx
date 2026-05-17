@@ -539,6 +539,95 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
     render(view)
   end
 
+  describe "keyboard shortcuts" do
+    test "Ctrl+Enter submits the active request", %{conn: conn} do
+      FakeHttpExecutor.stage(%Response{
+        status: 204,
+        headers: [],
+        body: "",
+        duration_ms: 1,
+        size_bytes: 0
+      })
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "GET", url: "https://hk.test/x"})
+      |> render_change()
+
+      render_hook(view, "hotkey", %{
+        "key" => "Enter",
+        "ctrlKey" => true,
+        "metaKey" => false,
+        "altKey" => false
+      })
+
+      html = await_response(view)
+      assert html =~ ">204<"
+    end
+
+    test "Alt+N opens a new tab", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/")
+      assert tab_count(html) == 1
+
+      html_after =
+        render_hook(view, "hotkey", %{
+          "key" => "n",
+          "ctrlKey" => false,
+          "metaKey" => false,
+          "altKey" => true
+        })
+
+      assert tab_count(html_after) == 2
+    end
+
+    test "Alt+W closes the active tab (and seeds a fresh one when it was the last)", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/")
+      first_id = active_tab_id(html)
+
+      # Open a second tab so we can close the first.
+      render_hook(view, "hotkey", %{
+        "key" => "n",
+        "ctrlKey" => false,
+        "metaKey" => false,
+        "altKey" => true
+      })
+
+      # Re-select the first tab so it's the active one.
+      view |> element("button[phx-click='select_tab'][phx-value-id='#{first_id}']") |> render_click()
+
+      html_after =
+        render_hook(view, "hotkey", %{
+          "key" => "w",
+          "ctrlKey" => false,
+          "metaKey" => false,
+          "altKey" => true
+        })
+
+      assert tab_count(html_after) == 1
+      refute active_tab_id(html_after) == first_id
+    end
+
+    test "plain Enter without modifier does not submit", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "GET", url: "https://hk.test/x"})
+      |> render_change()
+
+      render_hook(view, "hotkey", %{
+        "key" => "Enter",
+        "ctrlKey" => false,
+        "metaKey" => false,
+        "altKey" => false
+      })
+
+      # No response should appear (no FakeHttpExecutor stage either, but the
+      # task would still run if send fired — assert by absence of status pill).
+      refute render(view) =~ ~r/>\d{3}</
+    end
+  end
+
   describe "copy as cURL" do
     test "shows transient 'Copied!' label after clicking the cURL button", %{conn: conn} do
       {:ok, view, html} = live(conn, "/")

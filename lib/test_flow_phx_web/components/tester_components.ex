@@ -48,6 +48,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           phx-click="close_tab"
           phx-value-id={tab.id}
           aria-label="Close tab"
+          title="Close tab (Alt+W)"
           class="px-2 py-1.5 text-zinc-400 hover:text-red-600 text-sm"
         >×</button>
       </div>
@@ -55,6 +56,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
         type="button"
         phx-click="new_tab"
         aria-label="New tab"
+        title="New tab (Alt+N)"
         class="px-3 py-1.5 text-zinc-500 hover:text-zinc-900 text-sm shrink-0"
       >+</button>
     </div>
@@ -105,6 +107,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
       <button
         type="submit"
         disabled={@in_flight?}
+        title="Send (Ctrl/⌘+Enter)"
         class={[
           "rounded-md px-4 py-2 text-sm font-medium",
           if(@in_flight?,

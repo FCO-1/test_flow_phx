@@ -43,7 +43,7 @@ defmodule TestFlowPhxWeb.TesterLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex h-[calc(100vh-4rem)] gap-0 -mx-4">
+    <div class="flex h-[calc(100vh-4rem)] gap-0 -mx-4" phx-window-keydown="hotkey">
       <aside class="w-64 shrink-0 border-r border-zinc-200 bg-zinc-50 p-3 overflow-y-auto">
         <div class="flex gap-1 mb-3">
           <button
@@ -364,6 +364,28 @@ defmodule TestFlowPhxWeb.TesterLive do
     end
   end
 
+  # ---------- Keyboard shortcuts ----------
+
+  def handle_event("hotkey", params, socket) do
+    case classify_hotkey(params) do
+      :send ->
+        if socket.assigns.in_flight? do
+          {:noreply, socket}
+        else
+          handle_event("send", %{}, socket)
+        end
+
+      :new_tab ->
+        handle_event("new_tab", %{}, socket)
+
+      :close_tab ->
+        handle_event("close_tab", %{"id" => socket.assigns.active_tab_id}, socket)
+
+      :none ->
+        {:noreply, socket}
+    end
+  end
+
   # ---------- Copy as cURL ----------
 
   def handle_event("copy_as_curl", _params, socket) do
@@ -664,6 +686,24 @@ defmodule TestFlowPhxWeb.TesterLive do
   catch
     :exit, _ -> nil
   end
+
+  defp classify_hotkey(%{"key" => key} = p) do
+    ctrl_or_meta = truthy(p["ctrlKey"]) or truthy(p["metaKey"])
+    alt = truthy(p["altKey"])
+
+    cond do
+      key == "Enter" and ctrl_or_meta -> :send
+      alt and key in ["n", "N"] -> :new_tab
+      alt and key in ["w", "W"] -> :close_tab
+      true -> :none
+    end
+  end
+
+  defp classify_hotkey(_), do: :none
+
+  defp truthy(true), do: true
+  defp truthy("true"), do: true
+  defp truthy(_), do: false
 
   defp parse_save_target("new"), do: :new
   defp parse_save_target(nil), do: :new
