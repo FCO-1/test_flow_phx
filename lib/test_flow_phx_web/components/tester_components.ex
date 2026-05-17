@@ -197,15 +197,39 @@ defmodule TestFlowPhxWeb.TesterComponents do
     <div class="space-y-2">
       <div class="flex items-center justify-between">
         <h3 class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 px-1">Saved</h3>
-        <button
-          :if={@collections != []}
-          type="button"
-          phx-click="clear_collections"
-          data-confirm="¿Borrar todas las colecciones? Esta acción no se puede deshacer."
-          class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-red-600 px-1"
-        >
-          Clear
-        </button>
+        <div class="flex items-center gap-2">
+          <label
+            for="import-file-input"
+            title="Importar colección"
+            class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 px-1 cursor-pointer"
+          >
+            Import
+          </label>
+          <input
+            id="import-file-input"
+            type="file"
+            accept="application/json,.json"
+            phx-hook="FileImport"
+            class="hidden"
+          />
+          <button
+            :if={@collections != []}
+            type="button"
+            phx-click="export_all_collections"
+            class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 px-1"
+          >
+            Export all
+          </button>
+          <button
+            :if={@collections != []}
+            type="button"
+            phx-click="clear_collections"
+            data-confirm="¿Borrar todas las colecciones? Esta acción no se puede deshacer."
+            class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-red-600 px-1"
+          >
+            Clear
+          </button>
+        </div>
       </div>
 
       <form phx-submit="new_collection" class="flex gap-1">
@@ -267,6 +291,14 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
             <span class="text-xs text-zinc-400 dark:text-zinc-500 dark:text-zinc-400">{length(c.requests)}</span>
 
+            <button
+              type="button"
+              phx-click="export_collection"
+              phx-value-id={c.id}
+              aria-label="Export collection"
+              title="Export"
+              class="text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 px-1 invisible group-hover:visible text-xs"
+            >↓</button>
             <button
               type="button"
               phx-click="delete_collection"

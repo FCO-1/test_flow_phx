@@ -10,7 +10,16 @@ defmodule TestFlowPhxWeb.TesterLive do
   use TestFlowPhxWeb, :live_view
 
   alias TestFlowPhx.Domain.{Request, Response}
-  alias TestFlowPhx.UseCases.{Collections, CurlExport, History, SendRequest, Settings, Tabs}
+  alias TestFlowPhx.UseCases.{
+    CollectionExport,
+    CollectionImport,
+    Collections,
+    CurlExport,
+    History,
+    SendRequest,
+    Settings,
+    Tabs
+  }
   alias TestFlowPhxWeb.RequestParams
   alias TestFlowPhxWeb.TesterComponents
 
@@ -47,6 +56,7 @@ defmodule TestFlowPhxWeb.TesterLive do
   def render(assigns) do
     ~H"""
     <div class="flex h-screen w-screen dark:text-zinc-100 dark:bg-zinc-950" phx-window-keydown="hotkey">
+      <div id="file-download-anchor" phx-hook="FileDownload" class="hidden"></div>
       <aside class="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3 overflow-y-auto flex flex-col">
         <div class="flex gap-1 mb-3">
           <button
@@ -552,6 +562,64 @@ defmodule TestFlowPhxWeb.TesterLive do
     {:noreply, socket}
   end
 
+  def handle_event("export_collection", %{"id" => id}, socket) do
+    case Enum.find(socket.assigns.collections, &(&1.id == id)) do
+      nil ->
+        {:noreply, socket}
+
+      coll ->
+        json = CollectionExport.to_json(coll)
+        filename = CollectionExport.suggested_filename(coll.name)
+
+        socket =
+          push_event(socket, "download:file", %{
+            filename: filename,
+            content: json,
+            mime: "application/json"
+          })
+
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("export_all_collections", _params, socket) do
+    case socket.assigns.collections do
+      [] ->
+        {:noreply, socket}
+
+      colls ->
+        json = CollectionExport.to_json(colls)
+
+        socket =
+          push_event(socket, "download:file", %{
+            filename: CollectionExport.suggested_filename(nil),
+            content: json,
+            mime: "application/json"
+          })
+
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("import:file", %{"content" => content}, socket) do
+    case CollectionImport.import_all(content) do
+      {:ok, count} ->
+        socket =
+          socket
+          |> refresh_collections()
+          |> put_flash(:info, "Importadas #{count} #{collection_word(count)}.")
+
+        {:noreply, socket}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, CollectionImport.format_error(reason))}
+    end
+  end
+
+  def handle_event("import:error", %{"message" => msg}, socket) do
+    {:noreply, put_flash(socket, :error, msg)}
+  end
+
   def handle_event("clear_collections", _params, socket) do
     try_repo(fn -> Collections.clear() end)
 
@@ -814,6 +882,9 @@ defmodule TestFlowPhxWeb.TesterLive do
   catch
     :exit, _ -> nil
   end
+
+  defp collection_word(1), do: "colección"
+  defp collection_word(_), do: "colecciones"
 
   defp parse_theme("light"), do: :light
   defp parse_theme("dark"), do: :dark

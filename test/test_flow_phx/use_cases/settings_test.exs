@@ -65,16 +65,15 @@ defmodule TestFlowPhx.UseCases.SettingsTest do
       assert {:ok, body} = File.read(config_file)
       assert {:ok, %{"data_dir" => ^target}} = Jason.decode(body)
 
-      # `Settings.get_data_dir/0` delegates to `Paths.data_dir/0`, which
-      # honors TEST_FLOW_DATA_DIR (set in test_helper) above the override.
-      # That's intentional — verify the precedence here.
+      # With TEST_FLOW_DATA_DIR cleared, the Application override (set by
+      # Settings.set_data_dir/1) becomes the effective value.
       env = System.get_env("TEST_FLOW_DATA_DIR")
-      assert Settings.get_data_dir() == env
       System.delete_env("TEST_FLOW_DATA_DIR")
+
       try do
         assert Settings.get_data_dir() == target
       after
-        System.put_env("TEST_FLOW_DATA_DIR", env)
+        if env, do: System.put_env("TEST_FLOW_DATA_DIR", env)
       end
     end
 

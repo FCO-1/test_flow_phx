@@ -33,6 +33,17 @@ defmodule TestFlowPhx.UseCases.Collections do
   @spec clear() :: :ok
   def clear, do: repo().clear_collections()
 
+  @doc """
+  Persist a fully-formed collection (with its requests). Bypasses
+  `create/1`/`add_request/2` — used by the importer which assigns fresh
+  IDs upstream.
+  """
+  @spec upsert_raw(Collection.t()) :: :ok
+  def upsert_raw(%Collection{} = c) do
+    c = if c.id in [nil, ""], do: %{c | id: Request.new_id()}, else: c
+    repo().upsert_collection(c)
+  end
+
   @spec add_request(String.t(), Request.t()) :: Request.t()
   def add_request(collection_id, %Request{} = req) when is_binary(collection_id) do
     req = if req.id in [nil, ""], do: %{req | id: Request.new_id()}, else: req
