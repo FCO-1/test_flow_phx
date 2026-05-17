@@ -17,6 +17,10 @@
               window.matchMedia &&
               window.matchMedia("(prefers-color-scheme: dark)").matches);
           if (dark) document.documentElement.classList.add("dark");
+
+          var d = localStorage.getItem("tf:density") || "standard";
+          if (d === "compact") document.documentElement.classList.add("density-compact");
+          if (d === "fluid") document.documentElement.classList.add("density-fluid");
         } catch (_) {}
       })();
     </script>

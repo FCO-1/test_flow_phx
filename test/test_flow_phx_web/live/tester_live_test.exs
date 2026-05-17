@@ -539,6 +539,33 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
     render(view)
   end
 
+  describe "density toggle" do
+    test "mount defaults to :standard and renders the three-option control", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/")
+      assert html =~ ~s(id="density-toggle")
+      assert html =~ ~s(phx-value-density="compact")
+      assert html =~ ~s(phx-value-density="standard")
+      assert html =~ ~s(phx-value-density="fluid")
+    end
+
+    test "set_density pushes the density to the JS hook", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element(~s|button[phx-value-density="compact"]|)
+      |> render_click()
+
+      assert_push_event(view, "density:set", %{density: "compact"})
+      assert render(view) =~ ~r/phx-value-density="compact"[^>]*class="[^"]*bg-zinc-900/
+    end
+
+    test "density:current hook event updates the assign", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+      html = render_hook(view, "density:current", %{"density" => "fluid"})
+      assert html =~ ~r/phx-value-density="fluid"[^>]*class="[^"]*bg-zinc-900/
+    end
+  end
+
   describe "theme toggle" do
     test "mount defaults to :system and renders the three-option control", %{conn: conn} do
       {:ok, _view, html} = live(conn, "/")

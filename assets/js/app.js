@@ -66,6 +66,28 @@ Hooks.ThemeToggle = {
   }
 }
 
+function applyDensity(d) {
+  let html = document.documentElement
+  html.classList.remove("density-compact", "density-fluid")
+  if (d === "compact") html.classList.add("density-compact")
+  if (d === "fluid") html.classList.add("density-fluid")
+}
+
+Hooks.DensityToggle = {
+  mounted() {
+    let stored = (() => {
+      try { return localStorage.getItem("tf:density") } catch (_) { return null }
+    })()
+    let current = stored || "standard"
+    this.pushEvent("density:current", {density: current})
+
+    this.handleEvent("density:set", ({density}) => {
+      try { localStorage.setItem("tf:density", density) } catch (_) {}
+      applyDensity(density)
+    })
+  }
+}
+
 Hooks.ClipboardCopy = {
   mounted() {
     this.handleEvent("clipboard:copy", ({text}) => {

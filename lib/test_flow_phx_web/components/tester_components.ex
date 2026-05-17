@@ -122,6 +122,39 @@ defmodule TestFlowPhxWeb.TesterComponents do
     """
   end
 
+  attr :density, :atom, required: true
+
+  def density_toggle(assigns) do
+    ~H"""
+    <div
+      id="density-toggle"
+      phx-hook="DensityToggle"
+      class="flex items-center gap-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs"
+    >
+      <button
+        :for={{value, label, title} <- [
+          {:compact, "▬", "Compact"},
+          {:standard, "≡", "Standard"},
+          {:fluid, "☰", "Fluid"}
+        ]}
+        type="button"
+        phx-click="set_density"
+        phx-value-density={Atom.to_string(value)}
+        title={title}
+        class={[
+          "px-2 py-1 rounded transition-colors",
+          if(@density == value,
+            do: "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900",
+            else: "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+          )
+        ]}
+      >
+        {label}
+      </button>
+    </div>
+    """
+  end
+
   attr :theme, :atom, required: true
 
   def theme_toggle(assigns) do
