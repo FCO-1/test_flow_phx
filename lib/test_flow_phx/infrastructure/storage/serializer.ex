@@ -10,11 +10,27 @@ defmodule TestFlowPhx.Infrastructure.Storage.Serializer do
 
   alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}
 
-  @body_types ~w(none json raw form_urlencoded multipart)
-  @auth_types ~w(none bearer api_key)
-  @auth_locations ~w(header query)
-  @form_row_types ~w(text file)
-  @error_types ~w(invalid_json invalid_request timeout network unknown)
+  # String→atom maps. We use maps (not whitelists + String.to_existing_atom/1)
+  # because Serializer can boot before the modules that originate these atoms
+  # are loaded — and to_existing_atom would crash on the first cold start that
+  # holds a persisted value like "network".
+  @body_types %{
+    "none" => :none,
+    "json" => :json,
+    "raw" => :raw,
+    "form_urlencoded" => :form_urlencoded,
+    "multipart" => :multipart
+  }
+  @auth_types %{"none" => :none, "bearer" => :bearer, "api_key" => :api_key}
+  @auth_locations %{"header" => :header, "query" => :query}
+  @form_row_types %{"text" => :text, "file" => :file}
+  @error_types %{
+    "invalid_json" => :invalid_json,
+    "invalid_request" => :invalid_request,
+    "timeout" => :timeout,
+    "network" => :network,
+    "unknown" => :unknown
+  }
 
   # ----- dump (struct → map) -----
 
@@ -213,11 +229,10 @@ defmodule TestFlowPhx.Infrastructure.Storage.Serializer do
     }
   end
 
-  defp load_atom(value, whitelist, default) when is_binary(value) do
-    if value in whitelist, do: String.to_existing_atom(value), else: default
-  end
+  defp load_atom(value, map, default) when is_binary(value) and is_map(map),
+    do: Map.get(map, value, default)
 
-  defp load_atom(_other, _whitelist, default), do: default
+  defp load_atom(_other, _map, default), do: default
 
   defp parse_datetime(nil), do: nil
 
