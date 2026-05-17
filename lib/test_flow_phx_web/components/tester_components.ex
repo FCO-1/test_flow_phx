@@ -396,10 +396,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
   def save_request_modal(assigns) do
     ~H"""
-    <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40"
-      phx-click="close_save_modal"
-    >
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40">
       <div
         class="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md p-5"
         phx-click-away="close_save_modal"
@@ -492,10 +489,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
   def settings_modal(assigns) do
     ~H"""
-    <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40"
-      phx-click="close_settings_modal"
-    >
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40">
       <div
         class="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-lg p-5"
         phx-click-away="close_settings_modal"
