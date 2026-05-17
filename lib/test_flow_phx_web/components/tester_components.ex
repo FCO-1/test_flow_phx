@@ -63,6 +63,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
   attr :request, Request, required: true
   attr :in_flight?, :boolean, default: false
+  attr :curl_copied?, :boolean, default: false
 
   def method_url_bar(assigns) do
     assigns = assign(assigns, :methods, @methods)
@@ -90,6 +91,16 @@ defmodule TestFlowPhxWeb.TesterComponents do
         class="rounded-md px-3 py-2 text-sm font-medium border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
       >
         Save
+      </button>
+      <button
+        id="copy-curl-btn"
+        type="button"
+        phx-hook="ClipboardCopy"
+        phx-click="copy_as_curl"
+        title="Copy as cURL"
+        class="rounded-md px-3 py-2 text-sm font-medium border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+      >
+        {if(@curl_copied?, do: "Copied!", else: "cURL")}
       </button>
       <button
         type="submit"

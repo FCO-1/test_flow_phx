@@ -10,7 +10,7 @@ defmodule TestFlowPhxWeb.TesterLive do
   use TestFlowPhxWeb, :live_view
 
   alias TestFlowPhx.Domain.{Request, Response}
-  alias TestFlowPhx.UseCases.{Collections, History, SendRequest, Tabs}
+  alias TestFlowPhx.UseCases.{Collections, CurlExport, History, SendRequest, Tabs}
   alias TestFlowPhxWeb.RequestParams
   alias TestFlowPhxWeb.TesterComponents
 
@@ -34,6 +34,7 @@ defmodule TestFlowPhxWeb.TesterLive do
       |> assign(:editing_collection_id, nil)
       |> assign(:save_modal, nil)
       |> assign(:history, load_history())
+      |> assign(:curl_copied?, false)
       |> put_active_view()
 
     {:ok, socket}
@@ -82,7 +83,11 @@ defmodule TestFlowPhxWeb.TesterLive do
 
         <form id="request-form" phx-change="update_request" phx-submit="send" class="space-y-4">
           <input type="hidden" name="active_tab_id" value={@active_tab_id} />
-          <TesterComponents.method_url_bar request={@active_request} in_flight?={@in_flight?} />
+          <TesterComponents.method_url_bar
+            request={@active_request}
+            in_flight?={@in_flight?}
+            curl_copied?={@curl_copied?}
+          />
           <TesterComponents.request_subtabs active={@request_subtab} />
           <div class="rounded-lg border border-zinc-200 bg-white p-4 min-h-[12rem]">
             <%= case @request_subtab do %>
@@ -359,6 +364,20 @@ defmodule TestFlowPhxWeb.TesterLive do
     end
   end
 
+  # ---------- Copy as cURL ----------
+
+  def handle_event("copy_as_curl", _params, socket) do
+    curl = CurlExport.from_request(socket.assigns.active_request)
+    Process.send_after(self(), :clear_curl_copied, 1500)
+
+    socket =
+      socket
+      |> assign(:curl_copied?, true)
+      |> push_event("clipboard:copy", %{text: curl})
+
+    {:noreply, socket}
+  end
+
   # ---------- Collections sidebar ----------
 
   def handle_event("new_collection", %{"name" => name}, socket) do
@@ -596,6 +615,10 @@ defmodule TestFlowPhxWeb.TesterLive do
       :error ->
         {:noreply, socket}
     end
+  end
+
+  def handle_info(:clear_curl_copied, socket) do
+    {:noreply, assign(socket, :curl_copied?, false)}
   end
 
   def handle_info(_other, socket), do: {:noreply, socket}

@@ -539,6 +539,49 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
     render(view)
   end
 
+  describe "copy as cURL" do
+    test "shows transient 'Copied!' label after clicking the cURL button", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/")
+
+      assert html =~ "cURL"
+      refute html =~ "Copied!"
+
+      view
+      |> element("#copy-curl-btn")
+      |> render_click()
+
+      html_after = render(view)
+      assert html_after =~ "Copied!"
+
+      # The transient label clears on the :clear_curl_copied message.
+      send(view.pid, :clear_curl_copied)
+      assert render(view) =~ "cURL"
+    end
+
+    test "push_event sends the curl string to the clipboard hook", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      # Type a URL via the form change so the active request has something to copy.
+      view
+      |> element("form#request-form")
+      |> render_change(%{
+        "request" => %{
+          "method" => "POST",
+          "url" => "https://api.test/items",
+          "body_type" => "raw",
+          "body_text" => "hello"
+        }
+      })
+
+      assert render_hook(view |> element("#copy-curl-btn"), "copy_as_curl", %{}) =~ "Copied!"
+      assert_push_event(view, "clipboard:copy", %{text: text})
+      assert text =~ "curl"
+      assert text =~ "-X POST"
+      assert text =~ "'https://api.test/items'"
+      assert text =~ "--data-raw 'hello'"
+    end
+  end
+
   defp active_tab_id(html) do
     [_, id] = Regex.run(~r/name="active_tab_id" value="([^"]+)"/, html)
     id
