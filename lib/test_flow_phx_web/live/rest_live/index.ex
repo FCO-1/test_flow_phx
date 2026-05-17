@@ -31,7 +31,8 @@ defmodule TestFlowPhxWeb.RestLive.Index do
     CurlExport,
     History,
     SendRequest,
-    Settings
+    Settings,
+    Translations
   }
 
   alias TestFlowPhxWeb.RequestParams
@@ -64,6 +65,7 @@ defmodule TestFlowPhxWeb.RestLive.Index do
       |> assign(:theme, :system)
       |> assign(:density, :standard)
       |> assign(:settings_modal, nil)
+      |> assign(:locale, Settings.get_locale())
       |> TabState.put_active_view()
 
     {:ok, socket}
@@ -310,6 +312,8 @@ defmodule TestFlowPhxWeb.RestLive.Index do
     state = %{
       data_dir: Settings.get_data_dir(),
       default_dir: Settings.default_data_dir(),
+      locale: socket.assigns.locale,
+      available_locales: Translations.available_locales(),
       error: nil,
       flash: nil
     }
@@ -327,31 +331,51 @@ defmodule TestFlowPhxWeb.RestLive.Index do
         {:noreply, socket}
 
       state ->
-        new_state = %{state | data_dir: Map.get(params, "data_dir", state.data_dir)}
+        new_state = %{
+          state
+          | data_dir: Map.get(params, "data_dir", state.data_dir),
+            locale: Map.get(params, "locale", state.locale)
+        }
+
         {:noreply, assign(socket, :settings_modal, new_state)}
     end
   end
 
   def handle_event("commit_settings", %{"settings" => params}, socket) do
     state = socket.assigns.settings_modal || %{}
-    typed = Map.get(params, "data_dir", "") |> String.trim()
+    typed_dir = Map.get(params, "data_dir", "") |> String.trim()
+    typed_locale = Map.get(params, "locale", state[:locale] || socket.assigns.locale)
 
-    case Settings.set_data_dir(typed) do
-      {:ok, applied} ->
+    with {:ok, applied_dir} <- Settings.set_data_dir(typed_dir),
+         {:ok, applied_locale} <- Settings.set_locale(typed_locale) do
+      flash = Translations.t(applied_locale, "settings_modal.applied_flash")
+
+      new_state = %{
+        data_dir: applied_dir,
+        default_dir: Settings.default_data_dir(),
+        locale: applied_locale,
+        available_locales: Translations.available_locales(),
+        error: nil,
+        flash: flash
+      }
+
+      socket =
+        socket
+        |> assign(:settings_modal, new_state)
+        |> assign(:locale, applied_locale)
+        |> RepoHelpers.refresh_collections()
+        |> RepoHelpers.refresh_history()
+
+      {:noreply, socket}
+    else
+      {:error, :unknown_locale} ->
         new_state = %{
-          data_dir: applied,
-          default_dir: Settings.default_data_dir(),
-          error: nil,
-          flash: "Carpeta de datos actualizada. Los próximos guardados irán a la nueva ruta."
+          state
+          | error: "Locale no reconocido.",
+            flash: nil
         }
 
-        socket =
-          socket
-          |> assign(:settings_modal, new_state)
-          |> RepoHelpers.refresh_collections()
-          |> RepoHelpers.refresh_history()
-
-        {:noreply, socket}
+        {:noreply, assign(socket, :settings_modal, new_state)}
 
       {:error, reason} ->
         new_state = %{state | error: Settings.format_error(reason), flash: nil}

@@ -12,6 +12,7 @@ defmodule TestFlowPhx.UseCases.Settings do
   """
 
   alias TestFlowPhx.Infrastructure.Storage.{JsonFileRepo, Paths}
+  alias TestFlowPhx.UseCases.Translations
 
   @type validate_error ::
           :empty_path
@@ -61,6 +62,35 @@ defmodule TestFlowPhx.UseCases.Settings do
          :ok <- write_setting("data_dir", expanded),
          :ok <- apply_data_dir(expanded) do
       {:ok, expanded}
+    end
+  end
+
+  @doc "Locale efectivo (config persistida → default del módulo Translations)."
+  @spec get_locale() :: String.t()
+  def get_locale do
+    case get() do
+      %{"locale" => loc} when is_binary(loc) and loc != "" ->
+        if loc in Translations.available_locales(),
+          do: loc,
+          else: Translations.default_locale()
+
+      _ ->
+        Translations.default_locale()
+    end
+  end
+
+  @doc """
+  Setea el locale. Valida contra los locales disponibles y persiste a
+  disco. No requiere swap de procesos — el LiveView solo lo lee desde
+  `get_locale/0` en cada render.
+  """
+  @spec set_locale(String.t()) :: {:ok, String.t()} | {:error, :unknown_locale}
+  def set_locale(locale) when is_binary(locale) do
+    if locale in Translations.available_locales() do
+      :ok = write_setting("locale", locale)
+      {:ok, locale}
+    else
+      {:error, :unknown_locale}
     end
   end
 

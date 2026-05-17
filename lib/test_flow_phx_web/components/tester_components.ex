@@ -9,6 +9,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
   use Phoenix.Component
 
   alias TestFlowPhx.Domain.{Collection, Request, Response}
+  alias TestFlowPhx.UseCases.Translations
 
   @methods ~w(GET POST PUT PATCH DELETE HEAD OPTIONS)
 
@@ -502,7 +503,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
         phx-key="Escape"
       >
         <h2 class="text-base font-semibold text-zinc-800 dark:text-zinc-200 mb-3">
-          Settings
+          {Translations.t(@state.locale, "settings_modal.title")}
         </h2>
 
         <form
@@ -513,7 +514,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
         >
           <div>
             <label class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
-              Carpeta de datos
+              {Translations.t(@state.locale, "settings_modal.data_dir_label")}
             </label>
             <input
               type="text"
@@ -526,10 +527,30 @@ defmodule TestFlowPhxWeb.TesterComponents do
               placeholder={@state.default_dir}
             />
             <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
-              Aquí se guardan colecciones, historial y cuerpos de respuesta. Si la
-              carpeta no existe se intentará crear. Default:
+              {Translations.t(@state.locale, "settings_modal.data_dir_help")}
               <code class="font-mono">{@state.default_dir}</code>
             </p>
+          </div>
+
+          <div>
+            <label class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+              {Translations.t(@state.locale, "settings_modal.language_label")}
+            </label>
+            <div class="flex flex-col gap-1">
+              <label
+                :for={loc <- @state.available_locales}
+                class="flex items-center gap-2 text-sm cursor-pointer"
+              >
+                <input
+                  type="radio"
+                  name="settings[locale]"
+                  value={loc}
+                  checked={@state.locale == loc}
+                />
+                <span>{Translations.t(@state.locale, "languages." <> loc)}</span>
+                <code class="text-xs text-zinc-400 dark:text-zinc-500 font-mono">{loc}</code>
+              </label>
+            </div>
           </div>
 
           <div
@@ -552,13 +573,13 @@ defmodule TestFlowPhxWeb.TesterComponents do
               phx-click="close_settings_modal"
               class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-900"
             >
-              Cerrar
+              {Translations.t(@state.locale, "settings_modal.close")}
             </button>
             <button
               type="submit"
               class="rounded-md px-3 py-1.5 text-sm bg-zinc-900 text-white hover:bg-zinc-700"
             >
-              Aplicar
+              {Translations.t(@state.locale, "settings_modal.apply")}
             </button>
           </div>
         </form>

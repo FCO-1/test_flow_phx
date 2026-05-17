@@ -16,8 +16,9 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
       {:ok, _view, html} = live(conn, "/")
 
       assert html =~ "TestFlow"
-      assert html =~ "Collections"
-      assert html =~ "History"
+      # Sidebar tabs are translated; default locale is es-MX.
+      assert html =~ "Colecciones"
+      assert html =~ "Historial"
       assert html =~ "Send"
       assert html =~ "Params"
       assert html =~ "Headers"
@@ -31,7 +32,7 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
       assert render(view) =~ "Sin colecciones"
 
       assert view
-             |> element("aside button", "History")
+             |> element("aside button", "Historial")
              |> render_click() =~ "Sin historial"
     end
   end
@@ -477,7 +478,7 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
 
       _ = await_response(view)
 
-      html = view |> element("aside button", "History") |> render_click()
+      html = view |> element("aside button", "Historial") |> render_click()
 
       assert html =~ "https://example.test/x"
       refute html =~ "Sin historial"
@@ -499,7 +500,7 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
 
       _ = await_response(view)
 
-      view |> element("aside button", "History") |> render_click()
+      view |> element("aside button", "Historial") |> render_click()
 
       [entry | _] = TestFlowPhx.UseCases.History.list(10)
 
@@ -523,7 +524,7 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
 
       _ = await_response(view)
 
-      view |> element("aside button", "History") |> render_click()
+      view |> element("aside button", "Historial") |> render_click()
       refute render(view) =~ "Sin historial"
 
       view |> element(~s|button[phx-click="clear_history"]|) |> render_click()
@@ -563,7 +564,7 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
       refute html =~ "Carpeta de datos"
 
       html_open =
-        view |> element("button", "Settings") |> render_click()
+        view |> element("button", "Configuración") |> render_click()
 
       assert html_open =~ "Carpeta de datos"
 
@@ -582,7 +583,7 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
       on_exit(fn -> File.rm_rf!(tmp) end)
 
       {:ok, view, _} = live(conn, "/")
-      view |> element("button", "Settings") |> render_click()
+      view |> element("button", "Configuración") |> render_click()
 
       html =
         view

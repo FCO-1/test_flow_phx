@@ -97,6 +97,31 @@ defmodule TestFlowPhx.UseCases.SettingsTest do
     end
   end
 
+  describe "get_locale/0 + set_locale/1" do
+    test "default es 'es-MX' cuando no hay nada persistido" do
+      assert Settings.get_locale() == "es-MX"
+    end
+
+    test "set_locale/1 con valor válido persiste y lo lee de vuelta", %{config_file: config_file} do
+      assert {:ok, "en"} = Settings.set_locale("en")
+      assert Settings.get_locale() == "en"
+
+      assert {:ok, body} = File.read(config_file)
+      assert {:ok, %{"locale" => "en"}} = Jason.decode(body)
+    end
+
+    test "set_locale/1 con valor inválido devuelve :unknown_locale" do
+      assert {:error, :unknown_locale} = Settings.set_locale("zh-CN")
+      # No persiste nada
+      assert Settings.get_locale() == "es-MX"
+    end
+
+    test "locale inválido en disco hace fallback al default" do
+      assert :ok = File.write(System.get_env("TEST_FLOW_CONFIG_FILE"), ~s({"locale":"klingon"}))
+      assert Settings.get_locale() == "es-MX"
+    end
+  end
+
   describe "read_persisted_data_dir/0" do
     test "returns the saved dir", %{tmp: tmp} do
       target = Path.join(tmp, "saved")

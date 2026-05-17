@@ -9,7 +9,7 @@
         phx-click="sidebar_section"
         phx-value-section="collections"
       >
-        Collections
+        {Translations.t(@locale, "sidebar.collections_tab")}
       </button>
       <button
         type="button"
@@ -17,7 +17,7 @@
         phx-click="sidebar_section"
         phx-value-section="history"
       >
-        History
+        {Translations.t(@locale, "sidebar.history_tab")}
       </button>
     </div>
 
@@ -41,7 +41,7 @@
         phx-click="open_settings_modal"
         class="text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 px-2 py-1"
       >
-        Settings
+        {Translations.t(@locale, "sidebar.settings")}
       </button>
     </div>
   </aside>
