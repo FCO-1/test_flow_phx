@@ -23,11 +23,21 @@ defmodule TestFlowPhx.Infrastructure.Storage.Paths do
 
   @spec data_dir() :: Path.t()
   def data_dir do
-    case System.get_env("TEST_FLOW_DATA_DIR") do
-      dir when is_binary(dir) and dir != "" -> dir
-      _ -> Path.join(File.cwd!(), "data")
+    cond do
+      (env = System.get_env("TEST_FLOW_DATA_DIR")) && env != "" ->
+        env
+
+      (override = Application.get_env(:test_flow_phx, :data_dir_override)) &&
+          is_binary(override) && override != "" ->
+        override
+
+      true ->
+        default_data_dir()
     end
   end
+
+  @spec default_data_dir() :: Path.t()
+  def default_data_dir, do: Path.join(File.cwd!(), "data")
 
   @spec state_file() :: Path.t()
   def state_file, do: Path.join(data_dir(), "state.json")

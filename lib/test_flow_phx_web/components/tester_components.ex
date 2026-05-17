@@ -455,6 +455,86 @@ defmodule TestFlowPhxWeb.TesterComponents do
     """
   end
 
+  attr :state, :map, required: true
+
+  def settings_modal(assigns) do
+    ~H"""
+    <div
+      class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40"
+      phx-click="close_settings_modal"
+    >
+      <div
+        class="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-lg p-5"
+        phx-click-away="close_settings_modal"
+        phx-window-keydown="close_settings_modal"
+        phx-key="Escape"
+      >
+        <h2 class="text-base font-semibold text-zinc-800 dark:text-zinc-200 mb-3">
+          Settings
+        </h2>
+
+        <form
+          id="settings-form"
+          phx-change="update_settings_modal"
+          phx-submit="commit_settings"
+          class="space-y-3"
+        >
+          <div>
+            <label class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+              Carpeta de datos
+            </label>
+            <input
+              type="text"
+              name="settings[data_dir]"
+              value={@state.data_dir}
+              autocomplete="off"
+              autofocus
+              spellcheck="false"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm font-mono dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              placeholder={@state.default_dir}
+            />
+            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+              Aquí se guardan colecciones, historial y cuerpos de respuesta. Si la
+              carpeta no existe se intentará crear. Default:
+              <code class="font-mono">{@state.default_dir}</code>
+            </p>
+          </div>
+
+          <div
+            :if={@state.error}
+            class="rounded-md border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-800 dark:text-red-200"
+          >
+            {@state.error}
+          </div>
+
+          <div
+            :if={@state.flash}
+            class="rounded-md border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200"
+          >
+            {@state.flash}
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              phx-click="close_settings_modal"
+              class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-900"
+            >
+              Cerrar
+            </button>
+            <button
+              type="submit"
+              class="rounded-md px-3 py-1.5 text-sm bg-zinc-900 text-white hover:bg-zinc-700"
+            >
+              Aplicar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    """
+  end
+
   attr :active, :atom, required: true
 
   def request_subtabs(assigns) do

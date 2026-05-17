@@ -10,7 +10,7 @@ defmodule TestFlowPhxWeb.TesterLive do
   use TestFlowPhxWeb, :live_view
 
   alias TestFlowPhx.Domain.{Request, Response}
-  alias TestFlowPhx.UseCases.{Collections, CurlExport, History, SendRequest, Tabs}
+  alias TestFlowPhx.UseCases.{Collections, CurlExport, History, SendRequest, Settings, Tabs}
   alias TestFlowPhxWeb.RequestParams
   alias TestFlowPhxWeb.TesterComponents
 
@@ -37,6 +37,7 @@ defmodule TestFlowPhxWeb.TesterLive do
       |> assign(:curl_copied?, false)
       |> assign(:theme, :system)
       |> assign(:density, :standard)
+      |> assign(:settings_modal, nil)
       |> put_active_view()
 
     {:ok, socket}
@@ -79,6 +80,13 @@ defmodule TestFlowPhxWeb.TesterLive do
         <div class="pt-3 mt-3 border-t border-zinc-200 dark:border-zinc-800 flex flex-col gap-2 items-center">
           <TesterComponents.density_toggle density={@density} />
           <TesterComponents.theme_toggle theme={@theme} />
+          <button
+            type="button"
+            phx-click="open_settings_modal"
+            class="text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 px-2 py-1"
+          >
+            Settings
+          </button>
         </div>
       </aside>
 
@@ -139,6 +147,8 @@ defmodule TestFlowPhxWeb.TesterLive do
         state={@save_modal}
         collections={@collections}
       />
+
+      <TesterComponents.settings_modal :if={@settings_modal} state={@settings_modal} />
     </div>
     """
   end
@@ -378,6 +388,61 @@ defmodule TestFlowPhxWeb.TesterLive do
         |> save_tabs()
 
       {:noreply, socket}
+    end
+  end
+
+  # ---------- Settings modal ----------
+
+  def handle_event("open_settings_modal", _params, socket) do
+    state = %{
+      data_dir: Settings.get_data_dir(),
+      default_dir: Settings.default_data_dir(),
+      error: nil,
+      flash: nil
+    }
+
+    {:noreply, assign(socket, :settings_modal, state)}
+  end
+
+  def handle_event("close_settings_modal", _params, socket) do
+    {:noreply, assign(socket, :settings_modal, nil)}
+  end
+
+  def handle_event("update_settings_modal", %{"settings" => params}, socket) do
+    case socket.assigns.settings_modal do
+      nil ->
+        {:noreply, socket}
+
+      state ->
+        new_state = %{state | data_dir: Map.get(params, "data_dir", state.data_dir)}
+        {:noreply, assign(socket, :settings_modal, new_state)}
+    end
+  end
+
+  def handle_event("commit_settings", %{"settings" => params}, socket) do
+    state = socket.assigns.settings_modal || %{}
+    typed = Map.get(params, "data_dir", "") |> String.trim()
+
+    case Settings.set_data_dir(typed) do
+      {:ok, applied} ->
+        new_state = %{
+          data_dir: applied,
+          default_dir: Settings.default_data_dir(),
+          error: nil,
+          flash: "Carpeta de datos actualizada. Los próximos guardados irán a la nueva ruta."
+        }
+
+        socket =
+          socket
+          |> assign(:settings_modal, new_state)
+          |> refresh_collections()
+          |> refresh_history()
+
+        {:noreply, socket}
+
+      {:error, reason} ->
+        new_state = %{state | error: Settings.format_error(reason), flash: nil}
+        {:noreply, assign(socket, :settings_modal, new_state)}
     end
   end
 

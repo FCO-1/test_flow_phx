@@ -79,6 +79,15 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
   def set_tabs(tabs, active_id) when is_list(tabs),
     do: GenServer.call(__MODULE__, {:set_tabs, tabs, active_id})
 
+  @doc """
+  Atomically switch the on-disk path the repo writes to. The in-memory
+  state is flushed to the new path immediately so no edits are lost in
+  the swap window. The new path's parent directory is created if needed.
+  """
+  @spec swap_path(Path.t()) :: :ok
+  def swap_path(new_path) when is_binary(new_path),
+    do: GenServer.call(__MODULE__, {:swap_path, new_path})
+
   @impl true
   def subscribe do
     topic = call_config(:topic, @default_topic)
@@ -206,6 +215,15 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
     tabs = Enum.map(tabs, &ensure_id/1)
     state = %{state | tabs: tabs, active_tab_id: active_id} |> mark_dirty()
     {:reply, :ok, state}
+  end
+
+  # ----- Path swap -----
+
+  def handle_call({:swap_path, new_path}, _from, state) do
+    File.mkdir_p!(Path.dirname(new_path))
+    new_state = %{state | path: new_path}
+    write_to_disk(new_state)
+    {:reply, :ok, %{new_state | flush_pending?: false}}
   end
 
   # ----- Flush -----

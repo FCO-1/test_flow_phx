@@ -7,6 +7,8 @@ defmodule TestFlowPhx.Application do
 
   @impl true
   def start(_type, _args) do
+    apply_persisted_data_dir()
+
     children =
       [
         TestFlowPhxWeb.Telemetry,
@@ -24,6 +26,15 @@ defmodule TestFlowPhx.Application do
     # for other strategies and supported options
     opts = [strategy: :one_for_one, name: TestFlowPhx.Supervisor]
     Supervisor.start_link(children, opts)
+  end
+
+  # Apply the user's saved data dir (from ~/.config/test_flow_phx/config.json)
+  # before storage boots so the repo opens the right state.json.
+  defp apply_persisted_data_dir do
+    case TestFlowPhx.UseCases.Settings.read_persisted_data_dir() do
+      {:ok, dir} -> Application.put_env(:test_flow_phx, :data_dir_override, dir)
+      :error -> :ok
+    end
   end
 
   # Storage is wired in via config so test env can opt out and start the

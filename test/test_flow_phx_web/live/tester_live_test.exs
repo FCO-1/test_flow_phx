@@ -557,6 +557,43 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
     render(view)
   end
 
+  describe "settings modal" do
+    test "open + close cycle", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/")
+      refute html =~ "Carpeta de datos"
+
+      html_open =
+        view |> element("button", "Settings") |> render_click()
+
+      assert html_open =~ "Carpeta de datos"
+
+      html_closed =
+        view |> element(~s|button[phx-click="close_settings_modal"]|, "Cerrar") |> render_click()
+
+      refute html_closed =~ "Carpeta de datos"
+    end
+
+    test "invalid data dir surfaces an error and does not persist", %{conn: conn} do
+      tmp = Path.join(System.tmp_dir!(), "tf_modal_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+      file = Path.join(tmp, "regular-file")
+      File.write!(file, "x")
+
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      {:ok, view, _} = live(conn, "/")
+      view |> element("button", "Settings") |> render_click()
+
+      html =
+        view
+        |> form("#settings-form", %{"settings" => %{"data_dir" => file}})
+        |> render_submit()
+
+      assert html =~ "no a un directorio" or html =~ "not a directory"
+      refute Application.get_env(:test_flow_phx, :data_dir_override) == file
+    end
+  end
+
   describe "density toggle" do
     test "mount defaults to :standard and renders the three-option control", %{conn: conn} do
       {:ok, _view, html} = live(conn, "/")
