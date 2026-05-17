@@ -9,7 +9,14 @@ import Config
 config :test_flow_phx, TestFlowPhxWeb.Endpoint,
   # Binding to loopback ipv4 address prevents access from other machines.
   # Change to `ip: {0, 0, 0, 0}` to allow access from other machines.
-  http: [ip: {127, 0, 0, 1}, port: 4000],
+  #
+  # `log_protocol_errors: false` silences benign `Bandit.TransportError: timeout`
+  # messages that fire when the browser drops a LiveView websocket on reload.
+  http: [
+    ip: {127, 0, 0, 1},
+    port: 4000,
+    http_options: [log_protocol_errors: false]
+  ],
   check_origin: false,
   code_reloader: true,
   debug_errors: true,
