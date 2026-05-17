@@ -1,12 +1,12 @@
 defmodule TestFlowPhxWeb.RequestParams do
   @moduledoc """
-  Web-layer translator between Phoenix form params (string-keyed nested maps)
-  and `TestFlowPhx.Domain.Request` structs.
+  Traductor de la capa web entre params de formulario Phoenix (mapas
+  anidados con llaves string) y structs `TestFlowPhx.Domain.Request`.
 
-  Lives in the web boundary; pure functions, no I/O. Always falls back to
-  the `base` request for fields the form omits (e.g. when a sub-tab isn't
-  rendered, its inputs aren't in the DOM and `phx-change` won't include
-  them).
+  Vive en el límite web; funciones puras, sin I/O. Siempre hace fallback
+  al request `base` para campos que el formulario omite (ej. cuando un
+  sub-tab no está renderizado sus inputs no están en el DOM y
+  `phx-change` no los incluye).
   """
 
   alias TestFlowPhx.Domain.Request

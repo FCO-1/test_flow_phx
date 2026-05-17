@@ -1,11 +1,11 @@
 defmodule TestFlowPhx.Domain.Ports.HttpExecutor do
   @moduledoc """
-  Port (behaviour) for executing a Request against a remote system.
+  Puerto (behaviour) para ejecutar un Request contra un sistema remoto.
 
-  The domain depends only on this contract; the concrete adapter (currently
-  `TestFlowPhx.Infrastructure.Http.ReqExecutor`) is wired in via
-  `Application.get_env/2` at the use-case boundary, keeping the domain
-  independent of any HTTP library.
+  El dominio depende solo de este contrato; el adapter concreto
+  (actualmente `TestFlowPhx.Infrastructure.Http.ReqExecutor`) se cablea
+  vía `Application.get_env/2` en el límite del use case, manteniendo el
+  dominio independiente de cualquier librería HTTP.
   """
 
   alias TestFlowPhx.Domain.{Request, Response}

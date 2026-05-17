@@ -1,10 +1,12 @@
 defmodule TestFlowPhx.Domain.Ports.RequestRepo do
   @moduledoc """
-  Port (behaviour) for persisting collections, history and open tabs.
+  Puerto (behaviour) para persistir colecciones, historial y tabs
+  abiertas.
 
-  Phase 1 adapter writes to a local JSON file
-  (`TestFlowPhx.Infrastructure.Storage.JsonFileRepo`). A future SQLite/Ecto
-  adapter could replace it without touching domain or use cases.
+  El adapter de Fase 1 escribe a un archivo JSON local
+  (`TestFlowPhx.Infrastructure.Storage.JsonFileRepo`). Un adapter futuro
+  basado en SQLite/Ecto podría reemplazarlo sin tocar el dominio ni los
+  use cases.
   """
 
   alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}

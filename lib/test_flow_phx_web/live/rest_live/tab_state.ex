@@ -1,10 +1,11 @@
 defmodule TestFlowPhxWeb.RestLive.TabState do
   @moduledoc """
-  Pure(-ish) helpers that own the tab-state portion of the REST LiveView.
+  Helpers (casi puros) que se encargan del estado de tabs en la
+  LiveView REST.
 
-  Each function takes the socket and returns a new socket — keeps the
-  index module focused on event routing, not on the bookkeeping of
-  active_request/responses/in_flight_tabs.
+  Cada función toma el socket y devuelve un socket nuevo — así el
+  módulo `index` se mantiene enfocado en rutear eventos, sin cargar con
+  el bookkeeping de active_request / responses / in_flight_tabs.
   """
 
   import Phoenix.Component, only: [assign: 3]
@@ -13,9 +14,9 @@ defmodule TestFlowPhxWeb.RestLive.TabState do
   alias TestFlowPhx.UseCases.Tabs
 
   @doc """
-  Returns `{tabs, active_id}` to seed mount. Falls back to a fresh
-  Untitled when no tabs have been persisted yet OR when the repo is not
-  running (test env without storage).
+  Devuelve `{tabs, active_id}` para sembrar `mount`. Hace fallback a
+  una tab Untitled fresca cuando no hay tabs persistidas todavía O
+  cuando el repo no está corriendo (test env sin storage).
   """
   @spec load_or_seed() :: {[Request.t()], String.t()}
   def load_or_seed do
@@ -34,7 +35,7 @@ defmodule TestFlowPhxWeb.RestLive.TabState do
     end
   end
 
-  @doc "Builds the default empty request used to seed a new tab."
+  @doc "Construye el request vacío default usado para sembrar una tab nueva."
   @spec new_request() :: Request.t()
   def new_request do
     Request.new(
@@ -51,8 +52,8 @@ defmodule TestFlowPhxWeb.RestLive.TabState do
   end
 
   @doc """
-  Applies `fun` to the request struct of the currently-active tab and
-  refreshes the derived `:active_request` view.
+  Aplica `fun` al struct request de la tab activa actual y refresca la
+  vista derivada `:active_request`.
   """
   @spec update_active(Phoenix.LiveView.Socket.t(), (Request.t() -> Request.t())) ::
           Phoenix.LiveView.Socket.t()
@@ -70,10 +71,10 @@ defmodule TestFlowPhxWeb.RestLive.TabState do
   end
 
   @doc """
-  Recomputes the derived assigns (`active_request`, `response`,
-  `in_flight?`) from the underlying maps and the current `active_tab_id`.
-  Call after every mutation that touches `tabs`, `responses`,
-  `in_flight_tabs` or `active_tab_id`.
+  Recalcula los assigns derivados (`active_request`, `response`,
+  `in_flight?`) a partir de los mapas base y el `active_tab_id` actual.
+  Llamar después de cada mutación que toque `tabs`, `responses`,
+  `in_flight_tabs` o `active_tab_id`.
   """
   @spec put_active_view(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   def put_active_view(socket) do
@@ -87,9 +88,9 @@ defmodule TestFlowPhxWeb.RestLive.TabState do
   end
 
   @doc """
-  Demonitors any task refs that belonged to `tab_id` and removes them
-  from the `:send_refs` map. Use when closing a tab so in-flight work
-  for that tab cannot crash the LiveView later.
+  Hace demonitor de cualquier task ref que perteneciera a `tab_id` y
+  los remueve del map `:send_refs`. Usar al cerrar una tab para que
+  trabajo en vuelo de esa tab no pueda crashear la LiveView después.
   """
   @spec drop_send_refs_for(Phoenix.LiveView.Socket.t(), String.t()) ::
           Phoenix.LiveView.Socket.t()
@@ -108,8 +109,8 @@ defmodule TestFlowPhxWeb.RestLive.TabState do
   end
 
   @doc """
-  Persists the current `:tabs` / `:active_tab_id` via the Tabs use case.
-  Swallows `:exit` so a missing repo (test env) does not crash the
+  Persiste `:tabs` / `:active_tab_id` actuales vía el use case Tabs.
+  Traga `:exit` para que un repo ausente (test env) no crashee la
   LiveView.
   """
   @spec save(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()

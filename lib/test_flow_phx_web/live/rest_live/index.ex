@@ -1,20 +1,23 @@
 defmodule TestFlowPhxWeb.RestLive.Index do
   @moduledoc """
-  Top-level LiveView for the REST endpoint tester.
+  LiveView principal del tester de endpoints REST.
 
-  Lives under `live/rest_live/` so future protocols (GraphQL, WebSocket,
-  gRPC) get their own folder with their own template and helpers —
-  splitting the assigns and event surface per protocol keeps each view
-  small and lets routes load only what they need.
+  Vive bajo `live/rest_live/` para que futuros protocolos (GraphQL,
+  WebSocket, gRPC) tengan su propia carpeta con su propio template y
+  helpers — dividir los assigns y la superficie de eventos por protocolo
+  mantiene cada view pequeña y permite que las rutas carguen solo lo que
+  necesitan.
 
-  This module focuses on routing events to side-effects. Heavy lifting is
-  delegated to:
-    * `TabState`     — tab list / active view / send_refs bookkeeping
-    * `RepoHelpers`  — collections/history load + refresh with :exit safety
-    * `Hotkeys`      — keydown payload → action atom
-    * `Parsers`      — small input parsers (theme, density, save_target, etc.)
-    * `Styles`       — dynamic class lists used by the template
-    * `index.html.heex` — the rendered template
+  Este módulo se enfoca en rutear eventos a side-effects. El trabajo
+  pesado se delega a:
+    * `TabState`     — manejo de tabs, vista activa y send_refs
+    * `RepoHelpers`  — carga + refresh de collections/history con
+      tolerancia a :exit
+    * `Hotkeys`      — payload de keydown → atom de acción
+    * `Parsers`      — parsers pequeños de input (theme, density,
+      save_target, etc.)
+    * `Styles`       — listas de clases dinámicas usadas por el template
+    * `index.html.heex` — el template renderizado
   """
 
   use TestFlowPhxWeb, :live_view
@@ -35,7 +38,7 @@ defmodule TestFlowPhxWeb.RestLive.Index do
   alias TestFlowPhxWeb.TesterComponents
   alias TestFlowPhxWeb.RestLive.{Hotkeys, Parsers, RepoHelpers, Styles, TabState}
 
-  # `render/1` is auto-discovered from the colocated `index.html.heex`.
+  # `render/1` se auto-descubre desde el template colocado `index.html.heex`.
 
   @impl true
   def mount(_params, _session, socket) do

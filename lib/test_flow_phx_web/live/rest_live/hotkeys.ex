@@ -1,10 +1,11 @@
 defmodule TestFlowPhxWeb.RestLive.Hotkeys do
   @moduledoc """
-  Maps a `phx-window-keydown` payload into a high-level action atom.
+  Mapea un payload de `phx-window-keydown` a un atom de acción de alto
+  nivel.
 
-  Browser-reserved combos (Ctrl+T, Ctrl+W) are avoided in favor of
-  Alt+N / Alt+W. Ctrl/Cmd+Enter sends the active request and is allowed
-  to fire from inside an input.
+  Las combos reservadas por el navegador (Ctrl+T, Ctrl+W) se evitan en
+  favor de Alt+N / Alt+W. Ctrl/Cmd+Enter envía el request activo y se
+  permite que dispare desde dentro de un input.
   """
 
   @type action :: :send | :new_tab | :close_tab | :none
@@ -24,8 +25,8 @@ defmodule TestFlowPhxWeb.RestLive.Hotkeys do
 
   def classify(_), do: :none
 
-  # JS DOM events arrive as JSON booleans — sometimes the wire encodes
-  # them as the strings "true"/"false". Normalize both.
+  # Los eventos DOM JS llegan como booleanos JSON — a veces el wire los
+  # codifica como strings "true"/"false". Normalizamos ambos.
   defp truthy(true), do: true
   defp truthy("true"), do: true
   defp truthy(_), do: false

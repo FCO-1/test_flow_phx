@@ -1,22 +1,23 @@
 defmodule TestFlowPhx.Infrastructure.Storage.Paths do
   @moduledoc """
-  Infrastructure: resolves the on-disk layout for storage.
+  Infrastructure: resuelve el layout en disco del storage.
 
-  Defaults to `<project_root>/data/` so the directory ships with the repo
-  (tracked via `data/.gitkeep`) but all contents are git-ignored. Honors
-  `TEST_FLOW_DATA_DIR` so tests can stay hermetic.
+  Por defecto usa `<project_root>/data/` para que el directorio venga
+  con el repo (trackeado vía `data/.gitkeep`) pero todo el contenido
+  está git-ignored. Honra `TEST_FLOW_DATA_DIR` para que los tests sean
+  herméticos.
 
   Layout:
 
       data/
-        state.json                          # app state (collections + tabs + history index)
-        <protocol>/                         # one folder per protocol (rest, graphql, ws, ...)
-          <YYYY-MM-DD>/                     # ISO date of the run
-            <epoch_ms>.<ext>                # one file per executed test, body in native format
+        state.json                          # estado de la app (colecciones + tabs + índice de historial)
+        <protocolo>/                        # una carpeta por protocolo (rest, graphql, ws, ...)
+          <YYYY-MM-DD>/                     # fecha ISO de la ejecución
+            <epoch_ms>.<ext>                # un archivo por ejecución, body en formato nativo
 
-  Per-execution files are written at send time. Their metadata (request
-  snapshot, status, headers, timing) lives in `state.json`'s history entry,
-  which holds a pointer to the body file path.
+  Los archivos por ejecución se escriben al enviar. Su metadata
+  (snapshot del request, status, headers, timing) vive en la entry de
+  historial de `state.json`, que guarda un puntero al path del body.
   """
 
   @type protocol :: :rest | :graphql | :websocket | atom()
@@ -48,11 +49,12 @@ defmodule TestFlowPhx.Infrastructure.Storage.Paths do
   end
 
   @doc """
-  Build the path for a per-execution result file.
+  Construye el path de un archivo de resultado por ejecución.
 
-  `epoch_ms` defaults to `System.os_time(:millisecond)` at call time.
-  `ext` is the file extension without the leading dot (e.g. "json", "txt").
-  The parent directory is NOT created — callers do `File.mkdir_p!/1`.
+  `epoch_ms` toma el valor por defecto `System.os_time(:millisecond)` al
+  momento de llamar. `ext` es la extensión del archivo sin el punto
+  inicial (ej. "json", "txt"). El directorio padre NO se crea — los
+  llamadores deben hacer `File.mkdir_p!/1`.
   """
   @spec result_file(protocol(), Date.t(), pos_integer(), String.t()) :: Path.t()
   def result_file(protocol, %Date{} = date, epoch_ms, ext)
@@ -61,8 +63,9 @@ defmodule TestFlowPhx.Infrastructure.Storage.Paths do
   end
 
   @doc """
-  Convenience: build a result path for "now" (UTC date, current epoch ms),
-  picking the extension from a response Content-Type header value.
+  Conveniencia: construye un path para "ahora" (fecha UTC, epoch ms
+  actual), eligiendo la extensión desde el header Content-Type de la
+  respuesta.
   """
   @spec result_file_now(protocol(), String.t() | nil) :: Path.t()
   def result_file_now(protocol, content_type) do
@@ -73,8 +76,8 @@ defmodule TestFlowPhx.Infrastructure.Storage.Paths do
   def now_epoch_ms, do: System.os_time(:millisecond)
 
   @doc """
-  Map a Content-Type header value to a sensible file extension.
-  Falls back to "bin" for unknown or missing types.
+  Mapea un valor de header Content-Type a una extensión de archivo
+  sensata. Hace fallback a "bin" para tipos desconocidos o ausentes.
   """
   @spec extension_for(String.t() | nil) :: String.t()
   def extension_for(nil), do: "bin"

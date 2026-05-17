@@ -1,7 +1,8 @@
 defmodule TestFlowPhxWeb.RestLive.Parsers do
   @moduledoc """
-  Small input parsers used by the LiveView event handlers. Centralised
-  here so the index module reads as event-routing only.
+  Parsers pequeños de input usados por los event handlers de la
+  LiveView. Centralizados aquí para que el módulo `index` se lea solo
+  como ruteo de eventos.
   """
 
   @spec theme(String.t() | any()) :: :light | :dark | :system
@@ -15,8 +16,8 @@ defmodule TestFlowPhxWeb.RestLive.Parsers do
   def density(_), do: :standard
 
   @doc """
-  Parses the save-modal target field: a collection id (binary) or the
-  sentinel `:new` for "create a new collection".
+  Parsea el campo target del save-modal: un id de colección (binary) o
+  el sentinel `:new` para "crear una colección nueva".
   """
   @spec save_target(String.t() | nil) :: :new | String.t()
   def save_target("new"), do: :new
@@ -24,13 +25,13 @@ defmodule TestFlowPhxWeb.RestLive.Parsers do
   def save_target(""), do: :new
   def save_target(id) when is_binary(id), do: id
 
-  @doc "Suggests a default name for a request being saved."
+  @doc "Sugiere un nombre default para un request que se está guardando."
   @spec default_request_name(map()) :: String.t()
   def default_request_name(%{name: name}) when name not in [nil, "", "Untitled"], do: name
   def default_request_name(%{method: m, url: url}) when url != "", do: "#{m} #{url}"
   def default_request_name(_), do: "New Request"
 
-  @doc "Spanish pluralisation helper for the import flash."
+  @doc "Helper de pluralización en español para el flash de import."
   @spec collection_word(non_neg_integer()) :: String.t()
   def collection_word(1), do: "colección"
   def collection_word(_), do: "colecciones"

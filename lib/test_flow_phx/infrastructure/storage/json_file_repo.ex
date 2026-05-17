@@ -1,25 +1,27 @@
 defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
   @moduledoc """
-  Infrastructure adapter implementing `TestFlowPhx.Domain.Ports.RequestRepo`
-  on top of a JSON file (`data/state.json` by default).
+  Adapter de infrastructure que implementa
+  `TestFlowPhx.Domain.Ports.RequestRepo` sobre un archivo JSON
+  (`data/state.json` por defecto).
 
-  Architecture:
-    * In-memory state acts as the source of truth during a run.
-    * Writes mutate the state synchronously and schedule a debounced
-      `:flush` (500 ms) that writes the JSON to disk.
-    * `terminate/2` performs one final flush so a graceful shutdown never
-      loses recent edits.
-    * Every mutation broadcasts `:storage_changed` over `Phoenix.PubSub`
-      on the configured topic so subscribers (e.g. LiveView) can refresh.
+  Arquitectura:
+    * El estado en memoria es la fuente de verdad durante la ejecución.
+    * Las escrituras mutan el estado síncronamente y agendan un
+      `:flush` debounced (500 ms) que escribe el JSON a disco.
+    * `terminate/2` ejecuta un flush final para que un shutdown limpio
+      no pierda ediciones recientes.
+    * Cada mutación hace broadcast `:storage_changed` por `Phoenix.PubSub`
+      en el topic configurado, así los subscribers (ej. LiveView) pueden
+      refrescar.
 
-  ## Options
+  ## Opciones
 
-    * `:name` — registered name (default: this module)
-    * `:path` — full path to the JSON file (default: `Paths.state_file/0`)
-    * `:pubsub` — PubSub server (default: `TestFlowPhx.PubSub`)
-    * `:topic` — PubSub topic (default: `"storage"`)
-    * `:flush_after_ms` — debounce window (default: 500)
-    * `:history_cap` — max history entries kept (default: 100)
+    * `:name` — nombre registrado (default: este módulo)
+    * `:path` — ruta completa al archivo JSON (default: `Paths.state_file/0`)
+    * `:pubsub` — servidor PubSub (default: `TestFlowPhx.PubSub`)
+    * `:topic` — topic PubSub (default: `"storage"`)
+    * `:flush_after_ms` — ventana de debounce (default: 500)
+    * `:history_cap` — máximo de entries de historial guardadas (default: 100)
   """
 
   use GenServer
@@ -80,9 +82,10 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
     do: GenServer.call(__MODULE__, {:set_tabs, tabs, active_id})
 
   @doc """
-  Atomically switch the on-disk path the repo writes to. The in-memory
-  state is flushed to the new path immediately so no edits are lost in
-  the swap window. The new path's parent directory is created if needed.
+  Cambia atómicamente el path en disco donde el repo escribe. El estado
+  en memoria se flushea inmediatamente al nuevo path para no perder
+  ediciones en la ventana del swap. El directorio padre del nuevo path
+  se crea si no existe.
   """
   @spec swap_path(Path.t()) :: :ok
   def swap_path(new_path) when is_binary(new_path),

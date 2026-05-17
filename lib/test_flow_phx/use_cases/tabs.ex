@@ -1,7 +1,7 @@
 defmodule TestFlowPhx.UseCases.Tabs do
   @moduledoc """
-  Use cases for the open-tabs working state (persisted so a browser
-  reload restores the workspace).
+  Use cases para el estado de tabs abiertas (persistido para que un
+  reload del navegador restaure el workspace).
   """
 
   alias TestFlowPhx.Domain.Request

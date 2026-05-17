@@ -1,9 +1,9 @@
 defmodule TestFlowPhx.UseCases.CollectionExport do
   @moduledoc """
-  Pure builders that turn `%Collection{}` structs into our portable
-  JSON envelope.
+  Builders puros que convierten structs `%Collection{}` en nuestro
+  sobre JSON portable.
 
-  Format:
+  Formato:
 
       {
         "format": "testflow-collection",
@@ -12,15 +12,15 @@ defmodule TestFlowPhx.UseCases.CollectionExport do
         "collections": [
           {
             "name": "...",
-            "requests": [<Serializer-dumped request map>, ...]
+            "requests": [<mapa del request producido por Serializer>, ...]
           },
           ...
         ]
       }
 
-  Intentionally simple and self-describing — not Postman-compatible.
-  Strips internal IDs so importing a file does not collide with existing
-  records (the importer assigns fresh IDs at load time).
+  A propósito simple y auto-descriptivo — NO es compatible con Postman.
+  Quita los IDs internos para que importar el archivo no colisione con
+  registros existentes (el importador asigna IDs nuevos al cargar).
   """
 
   alias TestFlowPhx.Domain.Collection
@@ -51,9 +51,9 @@ defmodule TestFlowPhx.UseCases.CollectionExport do
   end
 
   @doc """
-  Reasonable filename for an export — slugified collection name plus
-  date stamp. For multi-collection exports pass `nil` and a generic
-  name will be used.
+  Nombre de archivo razonable para un export — slug del nombre de la
+  colección más fecha. Para exports multi-colección pasa `nil` y se usa
+  un nombre genérico.
   """
   @spec suggested_filename(String.t() | nil) :: String.t()
   def suggested_filename(name) do

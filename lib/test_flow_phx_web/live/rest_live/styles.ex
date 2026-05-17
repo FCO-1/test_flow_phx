@@ -1,8 +1,9 @@
 defmodule TestFlowPhxWeb.RestLive.Styles do
   @moduledoc """
-  Dynamic class-list builders for the REST LiveView. Static class strings
-  live inline in the template; this module is for the conditional ones
-  that depend on assigns (active states, density tweaks, etc.).
+  Builders de listas de clases dinámicas para la LiveView REST. Los
+  strings de clase estáticos viven inline en el template; este módulo
+  es para los condicionales que dependen de assigns (estados activos,
+  ajustes de densidad, etc.).
   """
 
   @spec sidebar_tab(boolean()) :: String.t()

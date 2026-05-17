@@ -1,8 +1,9 @@
 defmodule TestFlowPhxWeb.RestLive.RepoHelpers do
   @moduledoc """
-  Thin wrappers that load collections/history from the repo while
-  surviving missing-repo conditions (test env without storage). Used to
-  refresh the corresponding LiveView assigns after writes.
+  Wrappers delgados que cargan collections/history desde el repo y
+  sobreviven a condiciones de repo ausente (test env sin storage). Se
+  usan para refrescar los assigns correspondientes de la LiveView
+  después de escrituras.
   """
 
   import Phoenix.Component, only: [assign: 3]
@@ -32,9 +33,10 @@ defmodule TestFlowPhxWeb.RestLive.RepoHelpers do
     do: assign(socket, :history, load_history())
 
   @doc """
-  Run a repo-mutating function, swallowing `:exit` (missing GenServer)
-  so callers can stay terse: `try_call(fn -> Collections.create(...) end)`.
-  Returns the function's value on success, `nil` on missing repo.
+  Ejecuta una función que muta el repo, tragando `:exit` (GenServer
+  ausente) para que los llamadores se mantengan concisos:
+  `try_call(fn -> Collections.create(...) end)`. Devuelve el valor de
+  la función si tiene éxito, `nil` si el repo no está.
   """
   @spec try_call((-> any())) :: any() | nil
   def try_call(fun) when is_function(fun, 0) do

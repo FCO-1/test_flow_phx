@@ -1,7 +1,7 @@
 defmodule TestFlowPhx.UseCases.History do
   @moduledoc """
-  Use cases over the request history (capped, append-only from the
-  caller's perspective).
+  Use cases sobre el historial de requests (con tope, append-only desde
+  el punto de vista del llamador).
   """
 
   alias TestFlowPhx.Domain.HistoryEntry

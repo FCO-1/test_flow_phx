@@ -1,9 +1,9 @@
 defmodule TestFlowPhx.UseCases.Collections do
   @moduledoc """
-  Use cases for managing collections of saved requests.
+  Use cases para administrar colecciones de requests guardadas.
 
-  Talks to the world via the `RequestRepo` port; resolves the concrete
-  adapter at runtime via `Application.fetch_env!/2`.
+  Habla con el mundo a través del puerto `RequestRepo`; resuelve el
+  adapter concreto en runtime vía `Application.fetch_env!/2`.
   """
 
   alias TestFlowPhx.Domain.{Collection, Request}
@@ -34,9 +34,9 @@ defmodule TestFlowPhx.UseCases.Collections do
   def clear, do: repo().clear_collections()
 
   @doc """
-  Persist a fully-formed collection (with its requests). Bypasses
-  `create/1`/`add_request/2` — used by the importer which assigns fresh
-  IDs upstream.
+  Persiste una colección completa (con sus requests). Salta
+  `create/1`/`add_request/2` — la usa el importador que asigna IDs
+  frescos antes de llamar aquí.
   """
   @spec upsert_raw(Collection.t()) :: :ok
   def upsert_raw(%Collection{} = c) do

@@ -1,19 +1,20 @@
 defmodule TestFlowPhx.Infrastructure.Storage.Serializer do
   @moduledoc """
-  Infrastructure: round-trips domain entities through string-keyed maps
-  suitable for `Jason.encode!/1` / `Jason.decode!/1`.
+  Infrastructure: hace round-trip de entidades de dominio a mapas con
+  llaves string, apto para `Jason.encode!/1` / `Jason.decode!/1`.
 
-  Atom values (body_type, auth.type, auth.in, form_row.type, error.type)
-  are emitted as strings on `dump` and converted back from a whitelist on
-  `load`. Never uses `String.to_atom/1` on untrusted input.
+  Los valores atom (body_type, auth.type, auth.in, form_row.type,
+  error.type) se emiten como strings al hacer `dump` y se convierten de
+  vuelta desde una whitelist al hacer `load`. Nunca usa
+  `String.to_atom/1` sobre input no confiable.
   """
 
   alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}
 
-  # String→atom maps. We use maps (not whitelists + String.to_existing_atom/1)
-  # because Serializer can boot before the modules that originate these atoms
-  # are loaded — and to_existing_atom would crash on the first cold start that
-  # holds a persisted value like "network".
+  # Maps string→atom. Usamos maps (en vez de whitelists + String.to_existing_atom/1)
+  # porque Serializer puede arrancar antes que los módulos que originan estos
+  # atoms — y to_existing_atom crashearía en el primer cold start que tenga un
+  # valor persistido como "network".
   @body_types %{
     "none" => :none,
     "json" => :json,

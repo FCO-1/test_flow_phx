@@ -1,9 +1,9 @@
 defmodule TestFlowPhx.UseCases.CollectionImport do
   @moduledoc """
-  Parses a TestFlow export envelope (see `CollectionExport`) and persists
-  it as new collections — never overwrites existing ones, so importing
-  the same file twice produces two copies. Fresh IDs are assigned to both
-  collections and their requests.
+  Parsea un sobre de export de TestFlow (ver `CollectionExport`) y lo
+  persiste como colecciones nuevas — nunca sobrescribe existentes, así
+  que importar el mismo archivo dos veces produce dos copias. Se asignan
+  IDs frescos tanto a las colecciones como a sus requests.
   """
 
   alias TestFlowPhx.Domain.{Collection, Request}
@@ -21,10 +21,10 @@ defmodule TestFlowPhx.UseCases.CollectionImport do
           | {:malformed, term()}
 
   @doc """
-  Parse a JSON envelope string into a list of new `%Collection{}` structs.
+  Parsea el string JSON del sobre en una lista de nuevas `%Collection{}`.
 
-  Does NOT persist — see `import_all/1`. Useful when callers want to
-  validate first or preview before committing.
+  NO persiste — ver `import_all/1`. Útil cuando se quiere validar primero
+  o hacer un preview antes de confirmar.
   """
   @spec parse(String.t()) :: {:ok, [Collection.t()]} | {:error, error()}
   def parse(json) when is_binary(json) do
@@ -36,7 +36,8 @@ defmodule TestFlowPhx.UseCases.CollectionImport do
   end
 
   @doc """
-  Parse + persist. Returns the count of imported collections on success.
+  Parse + persiste. Devuelve la cantidad de colecciones importadas si
+  tiene éxito.
   """
   @spec import_all(String.t()) :: {:ok, non_neg_integer()} | {:error, error()}
   def import_all(json) when is_binary(json) do
@@ -51,7 +52,7 @@ defmodule TestFlowPhx.UseCases.CollectionImport do
   end
 
   @doc """
-  Human-friendly explanation for a parse error.
+  Explicación legible para humanos de un error de parsing.
   """
   @spec format_error(error()) :: String.t()
   def format_error(:invalid_json), do: "El archivo no es JSON válido."

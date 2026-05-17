@@ -1,11 +1,14 @@
 defmodule TestFlowPhx.UseCases.Settings do
   @moduledoc """
-  User-facing app settings persisted at a stable OS location.
+  Configuración de la app visible al usuario, persistida en una
+  ubicación estable del SO.
 
-  We can NOT keep these in `data/state.json` because the data dir itself
-  is one of the settings — chicken-and-egg. Defaults to
-  `$XDG_CONFIG_HOME/test_flow_phx/config.json`, falling back to
-  `~/.config/test_flow_phx/config.json`. Override via `TEST_FLOW_CONFIG_FILE`.
+  NO puede vivir dentro de `data/state.json` porque el directorio de
+  datos es justamente una de las configuraciones — bootstrapping
+  circular. Por defecto:
+  `$XDG_CONFIG_HOME/test_flow_phx/config.json`, con fallback a
+  `~/.config/test_flow_phx/config.json`. Override vía la variable de
+  entorno `TEST_FLOW_CONFIG_FILE` (útil para tests aislados).
   """
 
   alias TestFlowPhx.Infrastructure.Storage.{JsonFileRepo, Paths}
@@ -19,10 +22,11 @@ defmodule TestFlowPhx.UseCases.Settings do
           | {:stat_failed, atom()}
 
   @doc """
-  Reads the persisted settings, applying defaults for missing keys.
+  Lee la configuración persistida, aplicando defaults para llaves
+  ausentes.
 
-  Returns a map of string keys (`"data_dir"`) — never crashes if the file
-  is missing or malformed.
+  Devuelve un mapa con llaves string (`"data_dir"`) — nunca crashea si
+  el archivo no existe o está malformado.
   """
   @spec get() :: %{String.t() => term()}
   def get do
@@ -32,21 +36,22 @@ defmodule TestFlowPhx.UseCases.Settings do
     end
   end
 
-  @doc "Currently-effective data dir (settings override > env > default)."
+  @doc "Directorio de datos efectivo en este momento (override > env > default)."
   @spec get_data_dir() :: Path.t()
   def get_data_dir, do: Paths.data_dir()
 
   @doc """
-  Default data dir — what the app would use if the user has not set
-  anything. Useful to surface in the settings UI.
+  Directorio de datos por defecto — lo que la app usaría si el usuario
+  no ha configurado nada. Útil para mostrar en la UI de Settings.
   """
   @spec default_data_dir() :: Path.t()
   def default_data_dir, do: Paths.default_data_dir()
 
   @doc """
-  Set the data dir. Validates filesystem permissions, persists the
-  setting to disk, switches `Paths.data_dir/0` to the new value, and
-  swaps the running JsonFileRepo to write to the new location.
+  Configura el directorio de datos. Valida permisos de filesystem,
+  persiste el setting a disco, cambia `Paths.data_dir/0` al nuevo valor
+  y hace hot-swap del JsonFileRepo para que escriba en la nueva
+  ubicación.
   """
   @spec set_data_dir(String.t()) ::
           {:ok, Path.t()} | {:error, validate_error()}
@@ -60,9 +65,9 @@ defmodule TestFlowPhx.UseCases.Settings do
   end
 
   @doc """
-  Reads the configured data dir from disk (no fallback to default).
-  Used by `Application.start/2` to apply the user's choice before the
-  repo boots.
+  Lee el directorio de datos configurado desde disco (sin fallback al
+  default). La usa `Application.start/2` para aplicar la elección del
+  usuario antes de que el repo arranque.
   """
   @spec read_persisted_data_dir() :: {:ok, Path.t()} | :error
   def read_persisted_data_dir do
@@ -166,7 +171,7 @@ defmodule TestFlowPhx.UseCases.Settings do
   end
 
   @doc """
-  Human-friendly explanation for a `validate_dir/1` error.
+  Explicación legible para humanos de un error de `validate_dir/1`.
   """
   @spec format_error(validate_error()) :: String.t()
   def format_error(:empty_path), do: "La ruta está vacía."

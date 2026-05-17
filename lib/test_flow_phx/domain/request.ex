@@ -1,8 +1,10 @@
 defmodule TestFlowPhx.Domain.Request do
   @moduledoc """
-  Domain entity: a working draft of an HTTP request the user is editing or about to send.
+  Entidad de dominio: borrador de un request HTTP que el usuario está
+  editando o por enviar.
 
-  Pure data + construction helpers. No I/O, no framework dependencies.
+  Datos puros + helpers de construcción. Sin I/O, sin dependencias del
+  framework.
   """
 
   @type method :: String.t()

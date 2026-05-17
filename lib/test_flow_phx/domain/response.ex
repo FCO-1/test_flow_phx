@@ -1,7 +1,8 @@
 defmodule TestFlowPhx.Domain.Response do
   @moduledoc """
-  Domain entity: the result of executing a request. Always constructed,
-  never raised — network and parse failures are captured into `:error`.
+  Entidad de dominio: el resultado de ejecutar un request. Siempre se
+  construye, nunca se lanza como excepción — los fallos de red y de
+  parsing se capturan en el campo `:error`.
   """
 
   @type error ::

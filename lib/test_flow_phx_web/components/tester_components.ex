@@ -1,9 +1,9 @@
 defmodule TestFlowPhxWeb.TesterComponents do
   @moduledoc """
-  Function components for the REST tester UI.
+  Function components para la UI del tester REST.
 
-  Stateless — each component receives the `%Request{}` / `%Response{}` it
-  needs and emits events the parent LiveView handles.
+  Sin estado — cada componente recibe el `%Request{}` / `%Response{}`
+  que necesita y emite eventos que la LiveView padre maneja.
   """
 
   use Phoenix.Component
