@@ -1,10 +1,10 @@
 defmodule TestFlowPhx.Infrastructure.Http.ReqExecutor do
   @moduledoc """
-  Infrastructure adapter implementing `TestFlowPhx.Domain.Ports.HttpExecutor`
-  on top of the `Req` HTTP client.
+  Adapter de infrastructure que implementa
+  `TestFlowPhx.Domain.Ports.HttpExecutor` sobre el cliente HTTP `Req`.
 
-  Pure: holds no process state. Never raises — network and parse failures
-  are captured into `Response.error`.
+  Puro: no guarda estado de proceso. Nunca lanza excepciones — los
+  fallos de red y de parsing se capturan en `Response.error`.
   """
 
   @behaviour TestFlowPhx.Domain.Ports.HttpExecutor

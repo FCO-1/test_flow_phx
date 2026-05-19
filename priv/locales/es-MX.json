@@ -1,0 +1,68 @@
+{
+  "sidebar": {
+    "collections_tab": "Colecciones",
+    "history_tab": "Historial",
+    "saved": "Guardadas",
+    "recent": "Reciente",
+    "new_collection_placeholder": "+ Nueva colección",
+    "no_collections": "Sin colecciones todavía.",
+    "no_history": "Sin historial.",
+    "import": "Importar",
+    "export_all": "Exportar todo",
+    "clear": "Limpiar",
+    "settings": "Configuración"
+  },
+  "tabs": {
+    "untitled": "Sin título",
+    "new_tab_title": "Nueva pestaña (Alt+N)",
+    "close_tab_title": "Cerrar pestaña (Alt+W)"
+  },
+  "request_bar": {
+    "url_placeholder": "https://api.ejemplo.com/endpoint",
+    "save": "Guardar",
+    "curl": "cURL",
+    "curl_title": "Copiar como cURL",
+    "copied": "¡Copiado!",
+    "send": "Enviar",
+    "sending": "Enviando…",
+    "send_title": "Enviar (Ctrl/⌘+Enter)"
+  },
+  "request_subtabs": {
+    "params": "Parámetros",
+    "headers": "Encabezados",
+    "body": "Cuerpo",
+    "auth": "Autenticación"
+  },
+  "settings_modal": {
+    "title": "Configuración",
+    "data_dir_label": "Carpeta de datos",
+    "data_dir_help": "Aquí se guardan colecciones, historial y cuerpos de respuesta. Si la carpeta no existe se intentará crear. Default:",
+    "language_label": "Idioma",
+    "close": "Cerrar",
+    "apply": "Aplicar",
+    "applied_flash": "Carpeta de datos actualizada. Los próximos guardados irán a la nueva ruta.",
+    "language_applied": "Idioma actualizado."
+  },
+  "save_modal": {
+    "title": "Guardar request",
+    "name_label": "Nombre",
+    "collection_label": "Colección",
+    "new_collection": "+ Nueva colección",
+    "new_collection_name": "Nombre de la colección",
+    "cancel": "Cancelar",
+    "save": "Guardar"
+  },
+  "flashes": {
+    "json_invalid": "JSON inválido — corrige antes de formatear.",
+    "name_empty": "El nombre del request no puede estar vacío.",
+    "new_collection_name_required": "Indica un nombre para la nueva colección.",
+    "request_saved": "Request guardada en la colección.",
+    "save_failed": "No se pudo guardar (¿storage detenido?).",
+    "imported_one": "Importada 1 colección.",
+    "imported_many": "Importadas %{count} colecciones."
+  },
+  "languages": {
+    "en": "English",
+    "es-MX": "Español (México)"
+  }
+}

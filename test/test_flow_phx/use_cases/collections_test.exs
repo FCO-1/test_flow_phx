@@ -41,6 +41,16 @@ defmodule TestFlowPhx.UseCases.CollectionsTest do
     assert Collections.list() == []
   end
 
+  test "clear removes every collection in one call" do
+    Collections.create("A")
+    Collections.create("B")
+    Collections.create("C")
+    assert length(Collections.list()) == 3
+
+    assert :ok = Collections.clear()
+    assert Collections.list() == []
+  end
+
   test "add_request and remove_request maintain the requests list" do
     coll = Collections.create("Box")
 

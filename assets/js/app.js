@@ -88,6 +88,47 @@ Hooks.DensityToggle = {
   }
 }
 
+Hooks.FileDownload = {
+  mounted() {
+    this.handleEvent("download:file", ({filename, content, mime}) => {
+      let type = mime || "application/octet-stream"
+      let blob = new Blob([content], {type})
+      let url = URL.createObjectURL(blob)
+      let a = document.createElement("a")
+      a.href = url
+      a.download = filename || "download"
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      // Revoke after a short delay so Safari has time to start the download.
+      setTimeout(() => URL.revokeObjectURL(url), 1500)
+    })
+  }
+}
+
+Hooks.FileImport = {
+  mounted() {
+    this.el.addEventListener("change", (e) => {
+      let file = e.target.files && e.target.files[0]
+      if (!file) return
+      let reader = new FileReader()
+      reader.onload = () => {
+        this.pushEvent("import:file", {
+          filename: file.name,
+          content: reader.result
+        })
+        // Reset so the same file can be selected again later.
+        e.target.value = ""
+      }
+      reader.onerror = () => {
+        this.pushEvent("import:error", {message: "No se pudo leer el archivo."})
+        e.target.value = ""
+      }
+      reader.readAsText(file)
+    })
+  }
+}
+
 Hooks.ClipboardCopy = {
   mounted() {
     this.handleEvent("clipboard:copy", ({text}) => {

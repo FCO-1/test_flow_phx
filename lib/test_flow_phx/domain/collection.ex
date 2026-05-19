@@ -1,6 +1,7 @@
 defmodule TestFlowPhx.Domain.Collection do
   @moduledoc """
-  Domain entity: a flat (Phase 1) folder grouping saved Requests.
+  Entidad de dominio: una carpeta plana (Fase 1) que agrupa Requests
+  guardadas. Sin carpetas anidadas todavía.
   """
 
   alias TestFlowPhx.Domain.Request

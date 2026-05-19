@@ -1,11 +1,12 @@
 defmodule TestFlowPhx.UseCases.SendRequest do
   @moduledoc """
-  Application use case: send a Request via the configured HttpExecutor port
-  and (optionally) append a summary HistoryEntry via the RequestRepo port.
+  Use case de aplicación: envía un Request vía el puerto HttpExecutor
+  configurado y (opcionalmente) appendea un HistoryEntry resumido vía el
+  puerto RequestRepo.
 
-  The use case is the only seam between the web layer (LiveView) and the
-  outside world. It depends on domain entities and ports — never on a
-  specific HTTP library or storage backend.
+  Es el único puente entre la capa web (LiveView) y el mundo exterior.
+  Depende de entidades de dominio y puertos — nunca de una librería HTTP
+  específica ni de un backend de storage concreto.
   """
 
   alias TestFlowPhx.Domain.{HistoryEntry, Request, Response}

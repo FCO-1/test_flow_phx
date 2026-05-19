@@ -1,20 +1,37 @@
 defmodule TestFlowPhx.Infrastructure.Storage.Serializer do
   @moduledoc """
-  Infrastructure: round-trips domain entities through string-keyed maps
-  suitable for `Jason.encode!/1` / `Jason.decode!/1`.
+  Infrastructure: hace round-trip de entidades de dominio a mapas con
+  llaves string, apto para `Jason.encode!/1` / `Jason.decode!/1`.
 
-  Atom values (body_type, auth.type, auth.in, form_row.type, error.type)
-  are emitted as strings on `dump` and converted back from a whitelist on
-  `load`. Never uses `String.to_atom/1` on untrusted input.
+  Los valores atom (body_type, auth.type, auth.in, form_row.type,
+  error.type) se emiten como strings al hacer `dump` y se convierten de
+  vuelta desde una whitelist al hacer `load`. Nunca usa
+  `String.to_atom/1` sobre input no confiable.
   """
 
   alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}
 
-  @body_types ~w(none json raw form_urlencoded multipart)
-  @auth_types ~w(none bearer api_key)
-  @auth_locations ~w(header query)
-  @form_row_types ~w(text file)
-  @error_types ~w(invalid_json invalid_request timeout network unknown)
+  # Maps string→atom. Usamos maps (en vez de whitelists + String.to_existing_atom/1)
+  # porque Serializer puede arrancar antes que los módulos que originan estos
+  # atoms — y to_existing_atom crashearía en el primer cold start que tenga un
+  # valor persistido como "network".
+  @body_types %{
+    "none" => :none,
+    "json" => :json,
+    "raw" => :raw,
+    "form_urlencoded" => :form_urlencoded,
+    "multipart" => :multipart
+  }
+  @auth_types %{"none" => :none, "bearer" => :bearer, "api_key" => :api_key}
+  @auth_locations %{"header" => :header, "query" => :query}
+  @form_row_types %{"text" => :text, "file" => :file}
+  @error_types %{
+    "invalid_json" => :invalid_json,
+    "invalid_request" => :invalid_request,
+    "timeout" => :timeout,
+    "network" => :network,
+    "unknown" => :unknown
+  }
 
   # ----- dump (struct → map) -----
 
@@ -213,11 +230,10 @@ defmodule TestFlowPhx.Infrastructure.Storage.Serializer do
     }
   end
 
-  defp load_atom(value, whitelist, default) when is_binary(value) do
-    if value in whitelist, do: String.to_existing_atom(value), else: default
-  end
+  defp load_atom(value, map, default) when is_binary(value) and is_map(map),
+    do: Map.get(map, value, default)
 
-  defp load_atom(_other, _whitelist, default), do: default
+  defp load_atom(_other, _map, default), do: default
 
   defp parse_datetime(nil), do: nil
 

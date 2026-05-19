@@ -1,4 +1,4 @@
-defmodule TestFlowPhxWeb.TesterLiveTest do
+defmodule TestFlowPhxWeb.RestLive.IndexTest do
   use TestFlowPhxWeb.ConnCase, async: false
 
   import Phoenix.LiveViewTest
@@ -16,8 +16,9 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
       {:ok, _view, html} = live(conn, "/")
 
       assert html =~ "TestFlow"
-      assert html =~ "Collections"
-      assert html =~ "History"
+      # Sidebar tabs are translated; default locale is es-MX.
+      assert html =~ "Colecciones"
+      assert html =~ "Historial"
       assert html =~ "Send"
       assert html =~ "Params"
       assert html =~ "Headers"
@@ -31,7 +32,7 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
       assert render(view) =~ "Sin colecciones"
 
       assert view
-             |> element("aside button", "History")
+             |> element("aside button", "Historial")
              |> render_click() =~ "Sin historial"
     end
   end
@@ -343,6 +344,24 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
       refute html =~ "Sin colecciones"
     end
 
+    test "clear_collections empties the sidebar", %{conn: conn} do
+      Collections.create("One")
+      Collections.create("Two")
+
+      {:ok, view, html} = live(conn, "/")
+      assert html =~ "One"
+      assert html =~ "Two"
+
+      html_after =
+        view
+        |> element(~s|button[phx-click="clear_collections"]|)
+        |> render_click()
+
+      refute html_after =~ "One"
+      refute html_after =~ "Two"
+      assert html_after =~ "Sin colecciones"
+    end
+
     test "new_collection creates and lists it", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/")
 
@@ -459,7 +478,7 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
 
       _ = await_response(view)
 
-      html = view |> element("aside button", "History") |> render_click()
+      html = view |> element("aside button", "Historial") |> render_click()
 
       assert html =~ "https://example.test/x"
       refute html =~ "Sin historial"
@@ -481,7 +500,7 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
 
       _ = await_response(view)
 
-      view |> element("aside button", "History") |> render_click()
+      view |> element("aside button", "Historial") |> render_click()
 
       [entry | _] = TestFlowPhx.UseCases.History.list(10)
 
@@ -505,7 +524,7 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
 
       _ = await_response(view)
 
-      view |> element("aside button", "History") |> render_click()
+      view |> element("aside button", "Historial") |> render_click()
       refute render(view) =~ "Sin historial"
 
       view |> element(~s|button[phx-click="clear_history"]|) |> render_click()
@@ -537,6 +556,43 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
   defp await_response(view) do
     Process.sleep(50)
     render(view)
+  end
+
+  describe "settings modal" do
+    test "open + close cycle", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/")
+      refute html =~ "Carpeta de datos"
+
+      html_open =
+        view |> element("button", "Configuración") |> render_click()
+
+      assert html_open =~ "Carpeta de datos"
+
+      html_closed =
+        view |> element(~s|button[phx-click="close_settings_modal"]|, "Cerrar") |> render_click()
+
+      refute html_closed =~ "Carpeta de datos"
+    end
+
+    test "invalid data dir surfaces an error and does not persist", %{conn: conn} do
+      tmp = Path.join(System.tmp_dir!(), "tf_modal_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+      file = Path.join(tmp, "regular-file")
+      File.write!(file, "x")
+
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      {:ok, view, _} = live(conn, "/")
+      view |> element("button", "Configuración") |> render_click()
+
+      html =
+        view
+        |> form("#settings-form", %{"settings" => %{"data_dir" => file}})
+        |> render_submit()
+
+      assert html =~ "no a un directorio" or html =~ "not a directory"
+      refute Application.get_env(:test_flow_phx, :data_dir_override) == file
+    end
   end
 
   describe "density toggle" do

@@ -7,6 +7,8 @@ defmodule TestFlowPhx.Application do
 
   @impl true
   def start(_type, _args) do
+    apply_persisted_data_dir()
+
     children =
       [
         TestFlowPhxWeb.Telemetry,
@@ -26,8 +28,19 @@ defmodule TestFlowPhx.Application do
     Supervisor.start_link(children, opts)
   end
 
-  # Storage is wired in via config so test env can opt out and start the
-  # GenServer on demand inside each test with its own temp data dir.
+  # Aplica el data dir guardado por el usuario (desde
+  # ~/.config/test_flow_phx/config.json) antes de que arranque el storage,
+  # así el repo abre el state.json correcto.
+  defp apply_persisted_data_dir do
+    case TestFlowPhx.UseCases.Settings.read_persisted_data_dir() do
+      {:ok, dir} -> Application.put_env(:test_flow_phx, :data_dir_override, dir)
+      :error -> :ok
+    end
+  end
+
+  # El storage se cablea vía config para que el test env pueda optar por
+  # no incluirlo y cada test arranque el GenServer on-demand con su
+  # propio data dir temporal.
   defp storage_children do
     if Application.get_env(:test_flow_phx, :start_storage, true) do
       [TestFlowPhx.Infrastructure.Storage.JsonFileRepo]

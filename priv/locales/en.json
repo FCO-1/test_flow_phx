@@ -1,0 +1,68 @@
+{
+  "sidebar": {
+    "collections_tab": "Collections",
+    "history_tab": "History",
+    "saved": "Saved",
+    "recent": "Recent",
+    "new_collection_placeholder": "+ New collection",
+    "no_collections": "No collections yet.",
+    "no_history": "No history.",
+    "import": "Import",
+    "export_all": "Export all",
+    "clear": "Clear",
+    "settings": "Settings"
+  },
+  "tabs": {
+    "untitled": "Untitled",
+    "new_tab_title": "New tab (Alt+N)",
+    "close_tab_title": "Close tab (Alt+W)"
+  },
+  "request_bar": {
+    "url_placeholder": "https://api.example.com/endpoint",
+    "save": "Save",
+    "curl": "cURL",
+    "curl_title": "Copy as cURL",
+    "copied": "Copied!",
+    "send": "Send",
+    "sending": "Sending…",
+    "send_title": "Send (Ctrl/⌘+Enter)"
+  },
+  "request_subtabs": {
+    "params": "Params",
+    "headers": "Headers",
+    "body": "Body",
+    "auth": "Auth"
+  },
+  "settings_modal": {
+    "title": "Settings",
+    "data_dir_label": "Data folder",
+    "data_dir_help": "Collections, history and response bodies live here. If the folder does not exist it will be created. Default:",
+    "language_label": "Language",
+    "close": "Close",
+    "apply": "Apply",
+    "applied_flash": "Data folder updated. New writes will go to the new path.",
+    "language_applied": "Language updated."
+  },
+  "save_modal": {
+    "title": "Save request",
+    "name_label": "Name",
+    "collection_label": "Collection",
+    "new_collection": "+ New collection",
+    "new_collection_name": "Collection name",
+    "cancel": "Cancel",
+    "save": "Save"
+  },
+  "flashes": {
+    "json_invalid": "Invalid JSON — fix it before formatting.",
+    "name_empty": "Request name cannot be empty.",
+    "new_collection_name_required": "Enter a name for the new collection.",
+    "request_saved": "Request saved to the collection.",
+    "save_failed": "Could not save (storage stopped?).",
+    "imported_one": "Imported 1 collection.",
+    "imported_many": "Imported %{count} collections."
+  },
+  "languages": {
+    "en": "English",
+    "es-MX": "Spanish (Mexico)"
+  }
+}

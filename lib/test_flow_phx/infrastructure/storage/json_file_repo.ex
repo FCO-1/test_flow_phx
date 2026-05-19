@@ -1,25 +1,27 @@
 defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
   @moduledoc """
-  Infrastructure adapter implementing `TestFlowPhx.Domain.Ports.RequestRepo`
-  on top of a JSON file (`data/state.json` by default).
+  Adapter de infrastructure que implementa
+  `TestFlowPhx.Domain.Ports.RequestRepo` sobre un archivo JSON
+  (`data/state.json` por defecto).
 
-  Architecture:
-    * In-memory state acts as the source of truth during a run.
-    * Writes mutate the state synchronously and schedule a debounced
-      `:flush` (500 ms) that writes the JSON to disk.
-    * `terminate/2` performs one final flush so a graceful shutdown never
-      loses recent edits.
-    * Every mutation broadcasts `:storage_changed` over `Phoenix.PubSub`
-      on the configured topic so subscribers (e.g. LiveView) can refresh.
+  Arquitectura:
+    * El estado en memoria es la fuente de verdad durante la ejecución.
+    * Las escrituras mutan el estado síncronamente y agendan un
+      `:flush` debounced (500 ms) que escribe el JSON a disco.
+    * `terminate/2` ejecuta un flush final para que un shutdown limpio
+      no pierda ediciones recientes.
+    * Cada mutación hace broadcast `:storage_changed` por `Phoenix.PubSub`
+      en el topic configurado, así los subscribers (ej. LiveView) pueden
+      refrescar.
 
-  ## Options
+  ## Opciones
 
-    * `:name` — registered name (default: this module)
-    * `:path` — full path to the JSON file (default: `Paths.state_file/0`)
-    * `:pubsub` — PubSub server (default: `TestFlowPhx.PubSub`)
-    * `:topic` — PubSub topic (default: `"storage"`)
-    * `:flush_after_ms` — debounce window (default: 500)
-    * `:history_cap` — max history entries kept (default: 100)
+    * `:name` — nombre registrado (default: este módulo)
+    * `:path` — ruta completa al archivo JSON (default: `Paths.state_file/0`)
+    * `:pubsub` — servidor PubSub (default: `TestFlowPhx.PubSub`)
+    * `:topic` — topic PubSub (default: `"storage"`)
+    * `:flush_after_ms` — ventana de debounce (default: 500)
+    * `:history_cap` — máximo de entries de historial guardadas (default: 100)
   """
 
   use GenServer
@@ -45,6 +47,9 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
   @impl true
   def delete_collection(id) when is_binary(id),
     do: GenServer.call(__MODULE__, {:delete_collection, id})
+
+  @impl true
+  def clear_collections, do: GenServer.call(__MODULE__, :clear_collections)
 
   @impl true
   def upsert_request_in(collection_id, %Request{} = r) when is_binary(collection_id),
@@ -75,6 +80,16 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
   @impl true
   def set_tabs(tabs, active_id) when is_list(tabs),
     do: GenServer.call(__MODULE__, {:set_tabs, tabs, active_id})
+
+  @doc """
+  Cambia atómicamente el path en disco donde el repo escribe. El estado
+  en memoria se flushea inmediatamente al nuevo path para no perder
+  ediciones en la ventana del swap. El directorio padre del nuevo path
+  se crea si no existe.
+  """
+  @spec swap_path(Path.t()) :: :ok
+  def swap_path(new_path) when is_binary(new_path),
+    do: GenServer.call(__MODULE__, {:swap_path, new_path})
 
   @impl true
   def subscribe do
@@ -149,6 +164,11 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
     {:reply, :ok, state}
   end
 
+  def handle_call(:clear_collections, _from, state) do
+    state = %{state | collections: []} |> mark_dirty()
+    {:reply, :ok, state}
+  end
+
   # ----- Writes (requests inside a collection) -----
 
   def handle_call({:upsert_request_in, collection_id, %Request{} = req}, _from, state) do
@@ -198,6 +218,15 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
     tabs = Enum.map(tabs, &ensure_id/1)
     state = %{state | tabs: tabs, active_tab_id: active_id} |> mark_dirty()
     {:reply, :ok, state}
+  end
+
+  # ----- Path swap -----
+
+  def handle_call({:swap_path, new_path}, _from, state) do
+    File.mkdir_p!(Path.dirname(new_path))
+    new_state = %{state | path: new_path}
+    write_to_disk(new_state)
+    {:reply, :ok, %{new_state | flush_pending?: false}}
   end
 
   # ----- Flush -----

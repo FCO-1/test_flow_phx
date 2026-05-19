@@ -1,14 +1,15 @@
 defmodule TestFlowPhxWeb.TesterComponents do
   @moduledoc """
-  Function components for the REST tester UI.
+  Function components para la UI del tester REST.
 
-  Stateless — each component receives the `%Request{}` / `%Response{}` it
-  needs and emits events the parent LiveView handles.
+  Sin estado — cada componente recibe el `%Request{}` / `%Response{}`
+  que necesita y emite eventos que la LiveView padre maneja.
   """
 
   use Phoenix.Component
 
   alias TestFlowPhx.Domain.{Collection, Request, Response}
+  alias TestFlowPhx.UseCases.Translations
 
   @methods ~w(GET POST PUT PATCH DELETE HEAD OPTIONS)
 
@@ -74,7 +75,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
     <div class="flex gap-2 items-center">
       <select
         name="request[method]"
-        class="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm bg-white dark:bg-zinc-900"
+        class="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm bg-white dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
       >
         <option :for={m <- @methods} value={m} selected={m == @request.method}>{m}</option>
       </select>
@@ -85,7 +86,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
         placeholder="https://api.example.com/endpoint"
         phx-debounce="200"
         autocomplete="off"
-        class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
+        class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
       />
       <button
         type="button"
@@ -178,7 +179,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           "px-2 py-1 rounded transition-colors",
           if(@theme == value,
             do: "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900",
-            else: "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100  dark:text-zinc-500  "
+            else: "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 dark:text-zinc-500"
           )
         ]}
       >
@@ -195,13 +196,50 @@ defmodule TestFlowPhxWeb.TesterComponents do
   def collections_sidebar(assigns) do
     ~H"""
     <div class="space-y-2">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 px-1">Saved</h3>
+        <div class="flex items-center gap-2">
+          <label
+            for="import-file-input"
+            title="Importar colección"
+            class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 px-1 cursor-pointer"
+          >
+            Import
+          </label>
+          <input
+            id="import-file-input"
+            type="file"
+            accept="application/json,.json"
+            phx-hook="FileImport"
+            class="hidden"
+          />
+          <button
+            :if={@collections != []}
+            type="button"
+            phx-click="export_all_collections"
+            class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 px-1"
+          >
+            Export all
+          </button>
+          <button
+            :if={@collections != []}
+            type="button"
+            phx-click="clear_collections"
+            data-confirm="¿Borrar todas las colecciones? Esta acción no se puede deshacer."
+            class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-red-600 px-1"
+          >
+            Clear
+          </button>
+        </div>
+      </div>
+
       <form phx-submit="new_collection" class="flex gap-1">
         <input
           type="text"
           name="name"
           placeholder="+ New collection"
           autocomplete="off"
-          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs"
+          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
         />
       </form>
 
@@ -237,7 +275,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
                   phx-blur="cancel_rename_collection"
                   phx-key="Escape"
                   phx-keydown="cancel_rename_collection"
-                  class="w-full rounded border border-zinc-300 dark:border-zinc-700 px-1 py-0.5 text-xs"
+                  class="w-full rounded border border-zinc-300 dark:border-zinc-700 px-1 py-0.5 text-xs dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                   id={"rename-input-" <> c.id}
                   phx-mounted={Phoenix.LiveView.JS.focus()}
                 />
@@ -254,6 +292,14 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
             <span class="text-xs text-zinc-400 dark:text-zinc-500 dark:text-zinc-400">{length(c.requests)}</span>
 
+            <button
+              type="button"
+              phx-click="export_collection"
+              phx-value-id={c.id}
+              aria-label="Export collection"
+              title="Export"
+              class="text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 px-1 invisible group-hover:visible text-xs"
+            >↓</button>
             <button
               type="button"
               phx-click="delete_collection"
@@ -350,10 +396,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
   def save_request_modal(assigns) do
     ~H"""
-    <div
-      class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40"
-      phx-click="close_save_modal"
-    >
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40">
       <div
         class="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md p-5"
         phx-click-away="close_save_modal"
@@ -377,7 +420,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               autocomplete="off"
               phx-debounce="200"
               autofocus
-              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
           </div>
 
@@ -417,7 +460,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               value={@state.new_name}
               autocomplete="off"
               phx-debounce="200"
-              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
           </div>
 
@@ -434,6 +477,103 @@ defmodule TestFlowPhxWeb.TesterComponents do
               class="rounded-md px-3 py-1.5 text-sm bg-zinc-900 text-white hover:bg-zinc-700"
             >
               Guardar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    """
+  end
+
+  attr :state, :map, required: true
+
+  def settings_modal(assigns) do
+    ~H"""
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40">
+      <div
+        class="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-lg p-5"
+        phx-click-away="close_settings_modal"
+        phx-window-keydown="close_settings_modal"
+        phx-key="Escape"
+      >
+        <h2 class="text-base font-semibold text-zinc-800 dark:text-zinc-200 mb-3">
+          {Translations.t(@state.locale, "settings_modal.title")}
+        </h2>
+
+        <form
+          id="settings-form"
+          phx-change="update_settings_modal"
+          phx-submit="commit_settings"
+          class="space-y-3"
+        >
+          <div>
+            <label class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+              {Translations.t(@state.locale, "settings_modal.data_dir_label")}
+            </label>
+            <input
+              type="text"
+              name="settings[data_dir]"
+              value={@state.data_dir}
+              autocomplete="off"
+              autofocus
+              spellcheck="false"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm font-mono dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              placeholder={@state.default_dir}
+            />
+            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+              {Translations.t(@state.locale, "settings_modal.data_dir_help")}
+              <code class="font-mono">{@state.default_dir}</code>
+            </p>
+          </div>
+
+          <div>
+            <label class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+              {Translations.t(@state.locale, "settings_modal.language_label")}
+            </label>
+            <div class="flex flex-col gap-1">
+              <label
+                :for={loc <- @state.available_locales}
+                class="flex items-center gap-2 text-sm cursor-pointer"
+              >
+                <input
+                  type="radio"
+                  name="settings[locale]"
+                  value={loc}
+                  checked={@state.locale == loc}
+                />
+                <span>{Translations.t(@state.locale, "languages." <> loc)}</span>
+                <code class="text-xs text-zinc-400 dark:text-zinc-500 font-mono">{loc}</code>
+              </label>
+            </div>
+          </div>
+
+          <div
+            :if={@state.error}
+            class="rounded-md border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-3 py-2 text-sm text-red-800 dark:text-red-200"
+          >
+            {@state.error}
+          </div>
+
+          <div
+            :if={@state.flash}
+            class="rounded-md border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-2 text-sm text-emerald-800 dark:text-emerald-200"
+          >
+            {@state.flash}
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              phx-click="close_settings_modal"
+              class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-900"
+            >
+              {Translations.t(@state.locale, "settings_modal.close")}
+            </button>
+            <button
+              type="submit"
+              class="rounded-md px-3 py-1.5 text-sm bg-zinc-900 text-white hover:bg-zinc-700"
+            >
+              {Translations.t(@state.locale, "settings_modal.apply")}
             </button>
           </div>
         </form>
@@ -486,7 +626,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           value={row.key}
           placeholder={@placeholder_key}
           phx-debounce="200"
-          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
+          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
         />
         <input
           type="text"
@@ -494,7 +634,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           value={row.value}
           placeholder={@placeholder_value}
           phx-debounce="200"
-          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
+          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
         />
         <button
           type="button"
@@ -549,14 +689,14 @@ defmodule TestFlowPhxWeb.TesterComponents do
               name="request[body_text]"
               rows="10"
               phx-debounce="200"
-              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
               placeholder={if @request.body_type == :json, do: ~s({"key":"value"}), else: "raw body"}
             >{@request.body_text}</textarea>
             <button
               :if={@request.body_type == :json}
               type="button"
               phx-click="format_json"
-              class="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200"
+              class="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-700 text-zinc-800 dark:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-600"
             >
               Format
             </button>
@@ -599,11 +739,11 @@ defmodule TestFlowPhxWeb.TesterComponents do
           value={row.key}
           placeholder="field-name"
           phx-debounce="200"
-          class="w-32 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
+          class="w-32 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
         />
         <select
           name={"request[body_form][#{idx}][type]"}
-          class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-sm bg-white dark:bg-zinc-900"
+          class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-sm bg-white dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
         >
           <option value="text" selected={row.type == :text}>Text</option>
           <option value="file" selected={row.type == :file}>File</option>
@@ -616,7 +756,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             value={row.file_path || ""}
             placeholder="/absolute/path/to/file"
             phx-debounce="200"
-            class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
+            class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
           />
         <% else %>
           <input
@@ -625,7 +765,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             value={row.value}
             placeholder="value"
             phx-debounce="200"
-            class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
+            class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
           />
         <% end %>
 
@@ -686,7 +826,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             value={Map.get(@request.auth, :token, "")}
             placeholder="token"
             phx-debounce="200"
-            class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
+            class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
           />
 
         <% :api_key -> %>
@@ -697,7 +837,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               value={Map.get(@request.auth, :key, "")}
               placeholder="header or query name (e.g. X-Api-Key)"
               phx-debounce="200"
-              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
             <input
               type="text"
@@ -705,7 +845,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               value={Map.get(@request.auth, :value, "")}
               placeholder="value"
               phx-debounce="200"
-              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
             <div class="flex gap-3 text-sm">
               <label class="flex items-center gap-1.5 cursor-pointer">

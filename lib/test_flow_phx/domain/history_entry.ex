@@ -1,8 +1,10 @@
 defmodule TestFlowPhx.Domain.HistoryEntry do
   @moduledoc """
-  Domain entity: an immutable snapshot of a sent request and a summary of its
-  response. The full response body is intentionally NOT stored here so the
-  persisted history file stays small.
+  Entidad de dominio: una instantánea inmutable de un request enviado y
+  el resumen de su respuesta. El body completo de la respuesta NO se
+  almacena aquí a propósito, para que el archivo de historial persistido
+  se mantenga pequeño (el body vive como archivo aparte referenciado por
+  `result_file`).
   """
 
   alias TestFlowPhx.Domain.Request

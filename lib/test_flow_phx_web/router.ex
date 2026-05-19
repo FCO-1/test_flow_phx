@@ -17,7 +17,7 @@ defmodule TestFlowPhxWeb.Router do
   scope "/", TestFlowPhxWeb do
     pipe_through :browser
 
-    live "/", TesterLive, :index
+    live "/", RestLive.Index, :index
   end
 
   # Other scopes may use custom stacks.

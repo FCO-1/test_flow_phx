@@ -1,9 +1,9 @@
 defmodule TestFlowPhx.UseCases.Collections do
   @moduledoc """
-  Use cases for managing collections of saved requests.
+  Use cases para administrar colecciones de requests guardadas.
 
-  Talks to the world via the `RequestRepo` port; resolves the concrete
-  adapter at runtime via `Application.fetch_env!/2`.
+  Habla con el mundo a través del puerto `RequestRepo`; resuelve el
+  adapter concreto en runtime vía `Application.fetch_env!/2`.
   """
 
   alias TestFlowPhx.Domain.{Collection, Request}
@@ -29,6 +29,20 @@ defmodule TestFlowPhx.UseCases.Collections do
   @spec delete(String.t()) :: :ok
   def delete(collection_id) when is_binary(collection_id),
     do: repo().delete_collection(collection_id)
+
+  @spec clear() :: :ok
+  def clear, do: repo().clear_collections()
+
+  @doc """
+  Persiste una colección completa (con sus requests). Salta
+  `create/1`/`add_request/2` — la usa el importador que asigna IDs
+  frescos antes de llamar aquí.
+  """
+  @spec upsert_raw(Collection.t()) :: :ok
+  def upsert_raw(%Collection{} = c) do
+    c = if c.id in [nil, ""], do: %{c | id: Request.new_id()}, else: c
+    repo().upsert_collection(c)
+  end
 
   @spec add_request(String.t(), Request.t()) :: Request.t()
   def add_request(collection_id, %Request{} = req) when is_binary(collection_id) do
