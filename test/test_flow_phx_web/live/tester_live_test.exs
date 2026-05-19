@@ -539,6 +539,193 @@ defmodule TestFlowPhxWeb.TesterLiveTest do
     render(view)
   end
 
+  describe "density toggle" do
+    test "mount defaults to :standard and renders the three-option control", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/")
+      assert html =~ ~s(id="density-toggle")
+      assert html =~ ~s(phx-value-density="compact")
+      assert html =~ ~s(phx-value-density="standard")
+      assert html =~ ~s(phx-value-density="fluid")
+    end
+
+    test "set_density pushes the density to the JS hook", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element(~s|button[phx-value-density="compact"]|)
+      |> render_click()
+
+      assert_push_event(view, "density:set", %{density: "compact"})
+      assert render(view) =~ ~r/phx-value-density="compact"[^>]*class="[^"]*bg-zinc-900/
+    end
+
+    test "density:current hook event updates the assign", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+      html = render_hook(view, "density:current", %{"density" => "fluid"})
+      assert html =~ ~r/phx-value-density="fluid"[^>]*class="[^"]*bg-zinc-900/
+    end
+  end
+
+  describe "theme toggle" do
+    test "mount defaults to :system and renders the three-option control", %{conn: conn} do
+      {:ok, _view, html} = live(conn, "/")
+      assert html =~ ~s(id="theme-toggle")
+      assert html =~ ~s(phx-value-theme="light")
+      assert html =~ ~s(phx-value-theme="system")
+      assert html =~ ~s(phx-value-theme="dark")
+    end
+
+    test "theme:current hook event updates the assign", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+      html = render_hook(view, "theme:current", %{"theme" => "dark"})
+      # Active option for :dark gets the active-bg styling.
+      assert html =~ ~r/phx-value-theme="dark"[^>]*class="[^"]*bg-zinc-900/
+    end
+
+    test "set_theme pushes the theme to the JS hook and updates the assign", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> element(~s|button[phx-value-theme="light"]|)
+      |> render_click()
+
+      assert_push_event(view, "theme:set", %{theme: "light"})
+      assert render(view) =~ ~r/phx-value-theme="light"[^>]*class="[^"]*bg-zinc-900/
+    end
+  end
+
+  describe "keyboard shortcuts" do
+    test "Ctrl+Enter submits the active request", %{conn: conn} do
+      FakeHttpExecutor.stage(%Response{
+        status: 204,
+        headers: [],
+        body: "",
+        duration_ms: 1,
+        size_bytes: 0
+      })
+
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "GET", url: "https://hk.test/x"})
+      |> render_change()
+
+      render_hook(view, "hotkey", %{
+        "key" => "Enter",
+        "ctrlKey" => true,
+        "metaKey" => false,
+        "altKey" => false
+      })
+
+      html = await_response(view)
+      assert html =~ ">204<"
+    end
+
+    test "Alt+N opens a new tab", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/")
+      assert tab_count(html) == 1
+
+      html_after =
+        render_hook(view, "hotkey", %{
+          "key" => "n",
+          "ctrlKey" => false,
+          "metaKey" => false,
+          "altKey" => true
+        })
+
+      assert tab_count(html_after) == 2
+    end
+
+    test "Alt+W closes the active tab (and seeds a fresh one when it was the last)", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/")
+      first_id = active_tab_id(html)
+
+      # Open a second tab so we can close the first.
+      render_hook(view, "hotkey", %{
+        "key" => "n",
+        "ctrlKey" => false,
+        "metaKey" => false,
+        "altKey" => true
+      })
+
+      # Re-select the first tab so it's the active one.
+      view |> element("button[phx-click='select_tab'][phx-value-id='#{first_id}']") |> render_click()
+
+      html_after =
+        render_hook(view, "hotkey", %{
+          "key" => "w",
+          "ctrlKey" => false,
+          "metaKey" => false,
+          "altKey" => true
+        })
+
+      assert tab_count(html_after) == 1
+      refute active_tab_id(html_after) == first_id
+    end
+
+    test "plain Enter without modifier does not submit", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      view
+      |> form("#request-form", request: %{method: "GET", url: "https://hk.test/x"})
+      |> render_change()
+
+      render_hook(view, "hotkey", %{
+        "key" => "Enter",
+        "ctrlKey" => false,
+        "metaKey" => false,
+        "altKey" => false
+      })
+
+      # No response should appear (no FakeHttpExecutor stage either, but the
+      # task would still run if send fired — assert by absence of status pill).
+      refute render(view) =~ ~r/>\d{3}</
+    end
+  end
+
+  describe "copy as cURL" do
+    test "shows transient 'Copied!' label after clicking the cURL button", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/")
+
+      assert html =~ "cURL"
+      refute html =~ "Copied!"
+
+      view
+      |> element("#copy-curl-btn")
+      |> render_click()
+
+      html_after = render(view)
+      assert html_after =~ "Copied!"
+
+      # The transient label clears on the :clear_curl_copied message.
+      send(view.pid, :clear_curl_copied)
+      assert render(view) =~ "cURL"
+    end
+
+    test "push_event sends the curl string to the clipboard hook", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/")
+
+      # Type a URL via the form change so the active request has something to copy.
+      view
+      |> element("form#request-form")
+      |> render_change(%{
+        "request" => %{
+          "method" => "POST",
+          "url" => "https://api.test/items",
+          "body_type" => "raw",
+          "body_text" => "hello"
+        }
+      })
+
+      assert render_hook(view |> element("#copy-curl-btn"), "copy_as_curl", %{}) =~ "Copied!"
+      assert_push_event(view, "clipboard:copy", %{text: text})
+      assert text =~ "curl"
+      assert text =~ "-X POST"
+      assert text =~ "'https://api.test/items'"
+      assert text =~ "--data-raw 'hello'"
+    end
+  end
+
   defp active_tab_id(html) do
     [_, id] = Regex.run(~r/name="active_tab_id" value="([^"]+)"/, html)
     id

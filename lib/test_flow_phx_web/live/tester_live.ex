@@ -10,7 +10,7 @@ defmodule TestFlowPhxWeb.TesterLive do
   use TestFlowPhxWeb, :live_view
 
   alias TestFlowPhx.Domain.{Request, Response}
-  alias TestFlowPhx.UseCases.{Collections, History, SendRequest, Tabs}
+  alias TestFlowPhx.UseCases.{Collections, CurlExport, History, SendRequest, Tabs}
   alias TestFlowPhxWeb.RequestParams
   alias TestFlowPhxWeb.TesterComponents
 
@@ -34,6 +34,9 @@ defmodule TestFlowPhxWeb.TesterLive do
       |> assign(:editing_collection_id, nil)
       |> assign(:save_modal, nil)
       |> assign(:history, load_history())
+      |> assign(:curl_copied?, false)
+      |> assign(:theme, :system)
+      |> assign(:density, :standard)
       |> put_active_view()
 
     {:ok, socket}
@@ -42,8 +45,8 @@ defmodule TestFlowPhxWeb.TesterLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="flex h-[calc(100vh-4rem)] gap-0 -mx-4">
-      <aside class="w-64 shrink-0 border-r border-zinc-200 bg-zinc-50 p-3 overflow-y-auto">
+    <div class="flex h-screen w-screen dark:text-zinc-100 dark:bg-zinc-950" phx-window-keydown="hotkey">
+      <aside class="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3 overflow-y-auto flex flex-col">
         <div class="flex gap-1 mb-3">
           <button
             type="button"
@@ -62,54 +65,73 @@ defmodule TestFlowPhxWeb.TesterLive do
             History
           </button>
         </div>
-        <%= if @sidebar_section == :collections do %>
-          <TesterComponents.collections_sidebar
-            collections={@collections}
-            expanded={@expanded_collections}
-            editing_id={@editing_collection_id}
-          />
-        <% else %>
-          <TesterComponents.history_sidebar history={@history} />
-        <% end %>
+        <div class="flex-1 min-h-0">
+          <%= if @sidebar_section == :collections do %>
+            <TesterComponents.collections_sidebar
+              collections={@collections}
+              expanded={@expanded_collections}
+              editing_id={@editing_collection_id}
+            />
+          <% else %>
+            <TesterComponents.history_sidebar history={@history} />
+          <% end %>
+        </div>
+        <div class="pt-3 mt-3 border-t border-zinc-200 dark:border-zinc-800 flex flex-col gap-2 items-center">
+          <TesterComponents.density_toggle density={@density} />
+          <TesterComponents.theme_toggle theme={@theme} />
+        </div>
       </aside>
 
-      <main class="flex-1 flex flex-col min-w-0 p-4 gap-4 overflow-y-auto">
+      <main class="flex-1 flex flex-col min-w-0 p-4 compact:p-2 fluid:p-6 gap-4 compact:gap-2 fluid:gap-6 overflow-hidden">
         <TesterComponents.tab_bar
           tabs={@tabs}
           active_id={@active_tab_id}
           in_flight_tabs={@in_flight_tabs}
         />
 
-        <form id="request-form" phx-change="update_request" phx-submit="send" class="space-y-4">
-          <input type="hidden" name="active_tab_id" value={@active_tab_id} />
-          <TesterComponents.method_url_bar request={@active_request} in_flight?={@in_flight?} />
-          <TesterComponents.request_subtabs active={@request_subtab} />
-          <div class="rounded-lg border border-zinc-200 bg-white p-4 min-h-[12rem]">
-            <%= case @request_subtab do %>
-              <% :params -> %>
-                <TesterComponents.kv_editor
-                  rows={@active_request.query_params}
-                  field="query_params"
-                />
-              <% :headers -> %>
-                <TesterComponents.kv_editor
-                  rows={@active_request.headers}
-                  field="headers"
-                  placeholder_key="Header-Name"
-                />
-              <% :body -> %>
-                <TesterComponents.body_editor request={@active_request} />
-              <% :auth -> %>
-                <TesterComponents.auth_editor request={@active_request} />
-            <% end %>
-          </div>
-        </form>
+        <div class="flex-1 flex flex-col xl:flex-row gap-4 compact:gap-2 fluid:gap-6 min-h-0">
+          <form
+            id="request-form"
+            phx-change="update_request"
+            phx-submit="send"
+            class="flex flex-col gap-4 compact:gap-2 fluid:gap-6 xl:w-1/2 xl:min-w-0 overflow-y-auto"
+          >
+            <input type="hidden" name="active_tab_id" value={@active_tab_id} />
+            <TesterComponents.method_url_bar
+              request={@active_request}
+              in_flight?={@in_flight?}
+              curl_copied?={@curl_copied?}
+            />
+            <TesterComponents.request_subtabs active={@request_subtab} />
+            <div class="flex-1 min-h-[12rem] rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 compact:p-2 fluid:p-6">
+              <%= case @request_subtab do %>
+                <% :params -> %>
+                  <TesterComponents.kv_editor
+                    rows={@active_request.query_params}
+                    field="query_params"
+                  />
+                <% :headers -> %>
+                  <TesterComponents.kv_editor
+                    rows={@active_request.headers}
+                    field="headers"
+                    placeholder_key="Header-Name"
+                  />
+                <% :body -> %>
+                  <TesterComponents.body_editor request={@active_request} />
+                <% :auth -> %>
+                  <TesterComponents.auth_editor request={@active_request} />
+              <% end %>
+            </div>
+          </form>
 
-        <TesterComponents.response_panel
-          response={@response}
-          in_flight?={@in_flight?}
-          active={@response_subtab}
-        />
+          <div class="xl:w-1/2 xl:min-w-0 flex flex-col overflow-y-auto">
+            <TesterComponents.response_panel
+              response={@response}
+              in_flight?={@in_flight?}
+              active={@response_subtab}
+            />
+          </div>
+        </div>
       </main>
 
       <TesterComponents.save_request_modal
@@ -359,6 +381,76 @@ defmodule TestFlowPhxWeb.TesterLive do
     end
   end
 
+  # ---------- Theme ----------
+
+  def handle_event("theme:current", %{"theme" => t}, socket) do
+    {:noreply, assign(socket, :theme, parse_theme(t))}
+  end
+
+  def handle_event("set_theme", %{"theme" => t}, socket) do
+    theme = parse_theme(t)
+
+    socket =
+      socket
+      |> assign(:theme, theme)
+      |> push_event("theme:set", %{theme: Atom.to_string(theme)})
+
+    {:noreply, socket}
+  end
+
+  # ---------- Density ----------
+
+  def handle_event("density:current", %{"density" => d}, socket) do
+    {:noreply, assign(socket, :density, parse_density(d))}
+  end
+
+  def handle_event("set_density", %{"density" => d}, socket) do
+    density = parse_density(d)
+
+    socket =
+      socket
+      |> assign(:density, density)
+      |> push_event("density:set", %{density: Atom.to_string(density)})
+
+    {:noreply, socket}
+  end
+
+  # ---------- Keyboard shortcuts ----------
+
+  def handle_event("hotkey", params, socket) do
+    case classify_hotkey(params) do
+      :send ->
+        if socket.assigns.in_flight? do
+          {:noreply, socket}
+        else
+          handle_event("send", %{}, socket)
+        end
+
+      :new_tab ->
+        handle_event("new_tab", %{}, socket)
+
+      :close_tab ->
+        handle_event("close_tab", %{"id" => socket.assigns.active_tab_id}, socket)
+
+      :none ->
+        {:noreply, socket}
+    end
+  end
+
+  # ---------- Copy as cURL ----------
+
+  def handle_event("copy_as_curl", _params, socket) do
+    curl = CurlExport.from_request(socket.assigns.active_request)
+    Process.send_after(self(), :clear_curl_copied, 1500)
+
+    socket =
+      socket
+      |> assign(:curl_copied?, true)
+      |> push_event("clipboard:copy", %{text: curl})
+
+    {:noreply, socket}
+  end
+
   # ---------- Collections sidebar ----------
 
   def handle_event("new_collection", %{"name" => name}, socket) do
@@ -598,6 +690,10 @@ defmodule TestFlowPhxWeb.TesterLive do
     end
   end
 
+  def handle_info(:clear_curl_copied, socket) do
+    {:noreply, assign(socket, :curl_copied?, false)}
+  end
+
   def handle_info(_other, socket), do: {:noreply, socket}
 
   # ---------- Tabs helpers ----------
@@ -641,6 +737,32 @@ defmodule TestFlowPhxWeb.TesterLive do
   catch
     :exit, _ -> nil
   end
+
+  defp parse_theme("light"), do: :light
+  defp parse_theme("dark"), do: :dark
+  defp parse_theme(_), do: :system
+
+  defp parse_density("compact"), do: :compact
+  defp parse_density("fluid"), do: :fluid
+  defp parse_density(_), do: :standard
+
+  defp classify_hotkey(%{"key" => key} = p) do
+    ctrl_or_meta = truthy(p["ctrlKey"]) or truthy(p["metaKey"])
+    alt = truthy(p["altKey"])
+
+    cond do
+      key == "Enter" and ctrl_or_meta -> :send
+      alt and key in ["n", "N"] -> :new_tab
+      alt and key in ["w", "W"] -> :close_tab
+      true -> :none
+    end
+  end
+
+  defp classify_hotkey(_), do: :none
+
+  defp truthy(true), do: true
+  defp truthy("true"), do: true
+  defp truthy(_), do: false
 
   defp parse_save_target("new"), do: :new
   defp parse_save_target(nil), do: :new
@@ -713,9 +835,9 @@ defmodule TestFlowPhxWeb.TesterLive do
     base = "px-3 py-1.5 text-sm rounded-md transition-colors"
 
     if active? do
-      base <> " bg-white border border-zinc-200 text-zinc-900 font-medium"
+      base <> " bg-white dark:bg-zinc-900 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 font-medium"
     else
-      base <> " text-zinc-500 hover:text-zinc-800"
+      base <> " text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
     end
   end
 end

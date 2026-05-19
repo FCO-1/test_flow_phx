@@ -21,14 +21,14 @@ defmodule TestFlowPhxWeb.TesterComponents do
       assign_new(assigns, :in_flight_tabs, fn -> MapSet.new() end)
 
     ~H"""
-    <div class="flex items-end gap-0.5 border-b border-zinc-200 overflow-x-auto">
+    <div class="flex items-end gap-0.5 border-b border-zinc-200 dark:border-zinc-800 overflow-x-auto">
       <div
         :for={tab <- @tabs}
         class={[
           "flex items-center rounded-t-md border-x border-t shrink-0",
           if(tab.id == @active_id,
-            do: "bg-white border-zinc-300 -mb-px",
-            else: "bg-zinc-50 border-transparent hover:bg-zinc-100"
+            do: "bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 -mb-px",
+            else: "bg-zinc-50 dark:bg-zinc-900 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-800 dark:bg-zinc-800"
           )
         ]}
       >
@@ -41,21 +41,23 @@ defmodule TestFlowPhxWeb.TesterComponents do
         >
           <span class={tab_method_class(tab.method)}>{tab.method}</span>
           <span class="truncate max-w-[12rem]">{tab_label(tab)}</span>
-          <span :if={MapSet.member?(@in_flight_tabs, tab.id)} class="text-zinc-400 animate-pulse">●</span>
+          <span :if={MapSet.member?(@in_flight_tabs, tab.id)} class="text-zinc-400 dark:text-zinc-500 dark:text-zinc-400 animate-pulse">●</span>
         </button>
         <button
           type="button"
           phx-click="close_tab"
           phx-value-id={tab.id}
           aria-label="Close tab"
-          class="px-2 py-1.5 text-zinc-400 hover:text-red-600 text-sm"
+          title="Close tab (Alt+W)"
+          class="px-2 py-1.5 text-zinc-400 dark:text-zinc-500 dark:text-zinc-400 hover:text-red-600 text-sm"
         >×</button>
       </div>
       <button
         type="button"
         phx-click="new_tab"
         aria-label="New tab"
-        class="px-3 py-1.5 text-zinc-500 hover:text-zinc-900 text-sm shrink-0"
+        title="New tab (Alt+N)"
+        class="px-3 py-1.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 text-sm shrink-0"
       >+</button>
     </div>
     """
@@ -63,6 +65,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
   attr :request, Request, required: true
   attr :in_flight?, :boolean, default: false
+  attr :curl_copied?, :boolean, default: false
 
   def method_url_bar(assigns) do
     assigns = assign(assigns, :methods, @methods)
@@ -71,7 +74,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
     <div class="flex gap-2 items-center">
       <select
         name="request[method]"
-        class="rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm bg-white"
+        class="rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm bg-white dark:bg-zinc-900"
       >
         <option :for={m <- @methods} value={m} selected={m == @request.method}>{m}</option>
       </select>
@@ -82,27 +85,104 @@ defmodule TestFlowPhxWeb.TesterComponents do
         placeholder="https://api.example.com/endpoint"
         phx-debounce="200"
         autocomplete="off"
-        class="flex-1 rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
+        class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
       />
       <button
         type="button"
         phx-click="open_save_modal"
-        class="rounded-md px-3 py-2 text-sm font-medium border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+        class="rounded-md px-3 py-2 text-sm font-medium border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-900"
       >
         Save
       </button>
       <button
+        id="copy-curl-btn"
+        type="button"
+        phx-hook="ClipboardCopy"
+        phx-click="copy_as_curl"
+        title="Copy as cURL"
+        class="rounded-md px-3 py-2 text-sm font-medium border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-900"
+      >
+        {if(@curl_copied?, do: "Copied!", else: "cURL")}
+      </button>
+      <button
         type="submit"
         disabled={@in_flight?}
+        title="Send (Ctrl/⌘+Enter)"
         class={[
           "rounded-md px-4 py-2 text-sm font-medium",
           if(@in_flight?,
-            do: "bg-zinc-300 text-zinc-500 cursor-not-allowed",
+            do: "bg-zinc-300 text-zinc-500 dark:text-zinc-400 cursor-not-allowed",
             else: "bg-zinc-900 text-white hover:bg-zinc-700"
           )
         ]}
       >
         {if(@in_flight?, do: "Sending…", else: "Send")}
+      </button>
+    </div>
+    """
+  end
+
+  attr :density, :atom, required: true
+
+  def density_toggle(assigns) do
+    ~H"""
+    <div
+      id="density-toggle"
+      phx-hook="DensityToggle"
+      class="flex items-center gap-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs"
+    >
+      <button
+        :for={{value, label, title} <- [
+          {:compact, "▬", "Compact"},
+          {:standard, "≡", "Standard"},
+          {:fluid, "☰", "Fluid"}
+        ]}
+        type="button"
+        phx-click="set_density"
+        phx-value-density={Atom.to_string(value)}
+        title={title}
+        class={[
+          "px-2 py-1 rounded transition-colors",
+          if(@density == value,
+            do: "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900",
+            else: "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100"
+          )
+        ]}
+      >
+        {label}
+      </button>
+    </div>
+    """
+  end
+
+  attr :theme, :atom, required: true
+
+  def theme_toggle(assigns) do
+    ~H"""
+    <div
+      id="theme-toggle"
+      phx-hook="ThemeToggle"
+      class="flex items-center gap-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-0.5 text-xs"
+    >
+      <button
+        :for={{value, label, title} <- [
+          {:light, "☀", "Light"},
+          {:system, "⌂", "System"},
+          {:dark, "☾", "Dark"}
+        ]}
+        type="button"
+        phx-click="set_theme"
+        phx-value-theme={Atom.to_string(value)}
+        title={title}
+        class={[
+          "px-2 py-1 rounded transition-colors",
+          if(@theme == value,
+            do: "bg-zinc-900 text-white dark:bg-zinc-200 dark:text-zinc-900",
+            else: "text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100  dark:text-zinc-500  "
+          )
+        ]}
+      >
+        {label}
       </button>
     </div>
     """
@@ -121,11 +201,11 @@ defmodule TestFlowPhxWeb.TesterComponents do
           name="name"
           placeholder="+ New collection"
           autocomplete="off"
-          class="flex-1 rounded-md border border-zinc-300 px-2 py-1 text-xs"
+          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs"
         />
       </form>
 
-      <p :if={@collections == []} class="text-xs text-zinc-400 px-1 py-2 italic">
+      <p :if={@collections == []} class="text-xs text-zinc-400 dark:text-zinc-500 dark:text-zinc-400 px-1 py-2 italic">
         Sin colecciones todavía.
       </p>
 
@@ -133,13 +213,13 @@ defmodule TestFlowPhxWeb.TesterComponents do
         <li :for={c <- @collections} class="text-sm">
           <div class={[
             "flex items-center gap-1 rounded px-1 py-0.5 group",
-            "hover:bg-zinc-100"
+            "hover:bg-zinc-100 dark:hover:bg-zinc-800 dark:bg-zinc-800"
           ]}>
             <button
               type="button"
               phx-click="toggle_collection"
               phx-value-id={c.id}
-              class="text-zinc-400 w-4 text-xs"
+              class="text-zinc-400 dark:text-zinc-500 dark:text-zinc-400 w-4 text-xs"
               aria-label="Toggle collection"
             >{if(MapSet.member?(@expanded, c.id), do: "▼", else: "▶")}</button>
 
@@ -157,7 +237,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
                   phx-blur="cancel_rename_collection"
                   phx-key="Escape"
                   phx-keydown="cancel_rename_collection"
-                  class="w-full rounded border border-zinc-300 px-1 py-0.5 text-xs"
+                  class="w-full rounded border border-zinc-300 dark:border-zinc-700 px-1 py-0.5 text-xs"
                   id={"rename-input-" <> c.id}
                   phx-mounted={Phoenix.LiveView.JS.focus()}
                 />
@@ -172,7 +252,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               >{c.name}</button>
             <% end %>
 
-            <span class="text-xs text-zinc-400">{length(c.requests)}</span>
+            <span class="text-xs text-zinc-400 dark:text-zinc-500 dark:text-zinc-400">{length(c.requests)}</span>
 
             <button
               type="button"
@@ -185,7 +265,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           </div>
 
           <ul :if={MapSet.member?(@expanded, c.id)} class="pl-6 space-y-0.5 mt-1">
-            <li :if={c.requests == []} class="text-xs text-zinc-400 italic py-1">
+            <li :if={c.requests == []} class="text-xs text-zinc-400 dark:text-zinc-500 dark:text-zinc-400 italic py-1">
               (vacía)
             </li>
             <li :for={r <- c.requests} class="flex items-center gap-1 group">
@@ -194,7 +274,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
                 phx-click="open_request_in_tab"
                 phx-value-collection-id={c.id}
                 phx-value-request-id={r.id}
-                class="flex-1 flex items-center gap-2 text-left text-xs rounded px-1 py-0.5 hover:bg-zinc-100"
+                class="flex-1 flex items-center gap-2 text-left text-xs rounded px-1 py-0.5 hover:bg-zinc-100 dark:hover:bg-zinc-800 dark:bg-zinc-800"
               >
                 <span class={tab_method_class(r.method)}>{r.method}</span>
                 <span class="truncate">{request_label(r)}</span>
@@ -221,19 +301,19 @@ defmodule TestFlowPhxWeb.TesterComponents do
     ~H"""
     <div class="space-y-2">
       <div class="flex items-center justify-between">
-        <h3 class="text-xs uppercase tracking-wide text-zinc-500 px-1">Recent</h3>
+        <h3 class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 px-1">Recent</h3>
         <button
           :if={@history != []}
           type="button"
           phx-click="clear_history"
           data-confirm="¿Borrar todo el historial?"
-          class="text-xs text-zinc-400 hover:text-red-600 px-1"
+          class="text-xs text-zinc-400 dark:text-zinc-500 dark:text-zinc-400 hover:text-red-600 px-1"
         >
           Clear
         </button>
       </div>
 
-      <p :if={@history == []} class="text-xs text-zinc-400 px-1 py-2 italic">
+      <p :if={@history == []} class="text-xs text-zinc-400 dark:text-zinc-500 dark:text-zinc-400 px-1 py-2 italic">
         Sin historial todavía. Envía un request para verlo aquí.
       </p>
 
@@ -243,7 +323,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             type="button"
             phx-click="open_history_in_tab"
             phx-value-id={h.id}
-            class="w-full text-left rounded px-1 py-1 hover:bg-zinc-100 flex flex-col gap-0.5"
+            class="w-full text-left rounded px-1 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 dark:bg-zinc-800 flex flex-col gap-0.5"
           >
             <div class="flex items-center gap-2 text-xs">
               <span class={tab_method_class((h.request || %{method: "?"}).method)}>
@@ -252,12 +332,12 @@ defmodule TestFlowPhxWeb.TesterComponents do
               <span class={history_status_class(h.response_status, h.response_error)}>
                 {history_status_label(h.response_status, h.response_error)}
               </span>
-              <span class="text-zinc-400 ml-auto">{h.response_duration_ms} ms</span>
+              <span class="text-zinc-400 dark:text-zinc-500 dark:text-zinc-400 ml-auto">{h.response_duration_ms} ms</span>
             </div>
-            <div class="text-xs text-zinc-700 truncate font-mono">
+            <div class="text-xs text-zinc-700 dark:text-zinc-300 truncate font-mono">
               {(h.request || %{url: ""}).url}
             </div>
-            <div class="text-[10px] text-zinc-400">{format_ran_at(h.ran_at)}</div>
+            <div class="text-[10px] text-zinc-400 dark:text-zinc-500 dark:text-zinc-400">{format_ran_at(h.ran_at)}</div>
           </button>
         </li>
       </ul>
@@ -275,12 +355,12 @@ defmodule TestFlowPhxWeb.TesterComponents do
       phx-click="close_save_modal"
     >
       <div
-        class="bg-white rounded-lg shadow-xl w-full max-w-md p-5"
+        class="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md p-5"
         phx-click-away="close_save_modal"
         phx-window-keydown="close_save_modal"
         phx-key="Escape"
       >
-        <h2 class="text-base font-semibold text-zinc-800 mb-3">Guardar request</h2>
+        <h2 class="text-base font-semibold text-zinc-800 dark:text-zinc-200 mb-3">Guardar request</h2>
 
         <form
           id="save-request-form"
@@ -289,7 +369,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           class="space-y-3"
         >
           <div>
-            <label class="block text-xs text-zinc-500 mb-1">Nombre</label>
+            <label class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">Nombre</label>
             <input
               type="text"
               name="save[name]"
@@ -297,13 +377,13 @@ defmodule TestFlowPhxWeb.TesterComponents do
               autocomplete="off"
               phx-debounce="200"
               autofocus
-              class="w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm"
             />
           </div>
 
           <div>
-            <label class="block text-xs text-zinc-500 mb-1">Colección</label>
-            <div class="space-y-1 max-h-40 overflow-y-auto rounded border border-zinc-200 p-2">
+            <label class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">Colección</label>
+            <div class="space-y-1 max-h-40 overflow-y-auto rounded border border-zinc-200 dark:border-zinc-800 p-2">
               <label
                 :for={c <- @collections}
                 class="flex items-center gap-2 text-sm cursor-pointer"
@@ -315,7 +395,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
                   checked={@state.target == c.id}
                 />
                 <span class="truncate">{c.name}</span>
-                <span class="text-xs text-zinc-400">({length(c.requests)})</span>
+                <span class="text-xs text-zinc-400 dark:text-zinc-500 dark:text-zinc-400">({length(c.requests)})</span>
               </label>
               <label class="flex items-center gap-2 text-sm cursor-pointer">
                 <input
@@ -330,14 +410,14 @@ defmodule TestFlowPhxWeb.TesterComponents do
           </div>
 
           <div :if={@state.target == :new}>
-            <label class="block text-xs text-zinc-500 mb-1">Nombre de la colección</label>
+            <label class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">Nombre de la colección</label>
             <input
               type="text"
               name="save[new_name]"
               value={@state.new_name}
               autocomplete="off"
               phx-debounce="200"
-              class="w-full rounded-md border border-zinc-300 px-2 py-1.5 text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm"
             />
           </div>
 
@@ -345,7 +425,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             <button
               type="button"
               phx-click="close_save_modal"
-              class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+              class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-900"
             >
               Cancelar
             </button>
@@ -366,7 +446,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
   def request_subtabs(assigns) do
     ~H"""
-    <div class="flex gap-1 border-b border-zinc-200">
+    <div class="flex gap-1 border-b border-zinc-200 dark:border-zinc-800">
       <.subtab
         :for={{label, key} <- [
           {"Params", :params},
@@ -398,7 +478,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           name={"request[#{@field}][#{idx}][enabled]"}
           value="true"
           checked={row.enabled}
-          class="rounded border-zinc-300"
+          class="rounded border-zinc-300 dark:border-zinc-700"
         />
         <input
           type="text"
@@ -406,7 +486,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           value={row.key}
           placeholder={@placeholder_key}
           phx-debounce="200"
-          class="flex-1 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
         />
         <input
           type="text"
@@ -414,14 +494,14 @@ defmodule TestFlowPhxWeb.TesterComponents do
           value={row.value}
           placeholder={@placeholder_value}
           phx-debounce="200"
-          class="flex-1 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
         />
         <button
           type="button"
           phx-click="remove_kv_row"
           phx-value-field={@field}
           phx-value-index={idx}
-          class="text-zinc-400 hover:text-red-600 px-2"
+          class="text-zinc-400 dark:text-zinc-500 dark:text-zinc-400 hover:text-red-600 px-2"
           aria-label="Remove row"
         >
           ×
@@ -431,7 +511,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
         type="button"
         phx-click="add_kv_row"
         phx-value-field={@field}
-        class="text-sm text-zinc-600 hover:text-zinc-900"
+        class="text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100"
       >
         + Add row
       </button>
@@ -469,14 +549,14 @@ defmodule TestFlowPhxWeb.TesterComponents do
               name="request[body_text]"
               rows="10"
               phx-debounce="200"
-              class="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
               placeholder={if @request.body_type == :json, do: ~s({"key":"value"}), else: "raw body"}
             >{@request.body_text}</textarea>
             <button
               :if={@request.body_type == :json}
               type="button"
               phx-click="format_json"
-              class="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-zinc-100 hover:bg-zinc-200"
+              class="absolute top-2 right-2 text-xs px-2 py-1 rounded bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200"
             >
               Format
             </button>
@@ -489,7 +569,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           <.multipart_editor rows={@request.body_form} />
 
         <% true -> %>
-          <p class="text-sm text-zinc-500 italic">Sin body.</p>
+          <p class="text-sm text-zinc-500 dark:text-zinc-400 italic">Sin body.</p>
       <% end %>
     </div>
     """
@@ -500,7 +580,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
   def multipart_editor(assigns) do
     ~H"""
     <div class="space-y-2">
-      <p class="text-xs text-zinc-500 italic">
+      <p class="text-xs text-zinc-500 dark:text-zinc-400 italic">
         Los archivos se leen del disco en cada envío — escribe la ruta absoluta.
       </p>
 
@@ -511,7 +591,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           name={"request[body_form][#{idx}][enabled]"}
           value="true"
           checked={row.enabled}
-          class="rounded border-zinc-300"
+          class="rounded border-zinc-300 dark:border-zinc-700"
         />
         <input
           type="text"
@@ -519,11 +599,11 @@ defmodule TestFlowPhxWeb.TesterComponents do
           value={row.key}
           placeholder="field-name"
           phx-debounce="200"
-          class="w-32 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+          class="w-32 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
         />
         <select
           name={"request[body_form][#{idx}][type]"}
-          class="rounded-md border border-zinc-300 px-2 py-1 text-sm bg-white"
+          class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-sm bg-white dark:bg-zinc-900"
         >
           <option value="text" selected={row.type == :text}>Text</option>
           <option value="file" selected={row.type == :file}>File</option>
@@ -536,7 +616,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             value={row.file_path || ""}
             placeholder="/absolute/path/to/file"
             phx-debounce="200"
-            class="flex-1 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+            class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
           />
         <% else %>
           <input
@@ -545,7 +625,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             value={row.value}
             placeholder="value"
             phx-debounce="200"
-            class="flex-1 rounded-md border border-zinc-300 px-2 py-1 font-mono text-sm"
+            class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm"
           />
         <% end %>
 
@@ -553,7 +633,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           type="button"
           phx-click="remove_form_row"
           phx-value-index={idx}
-          class="text-zinc-400 hover:text-red-600 px-2"
+          class="text-zinc-400 dark:text-zinc-500 dark:text-zinc-400 hover:text-red-600 px-2"
           aria-label="Remove row"
         >×</button>
       </div>
@@ -561,7 +641,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
       <button
         type="button"
         phx-click="add_form_row"
-        class="text-sm text-zinc-600 hover:text-zinc-900"
+        class="text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100"
       >
         + Add row
       </button>
@@ -606,7 +686,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             value={Map.get(@request.auth, :token, "")}
             placeholder="token"
             phx-debounce="200"
-            class="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
+            class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
           />
 
         <% :api_key -> %>
@@ -617,7 +697,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               value={Map.get(@request.auth, :key, "")}
               placeholder="header or query name (e.g. X-Api-Key)"
               phx-debounce="200"
-              class="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
             />
             <input
               type="text"
@@ -625,7 +705,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               value={Map.get(@request.auth, :value, "")}
               placeholder="value"
               phx-debounce="200"
-              class="w-full rounded-md border border-zinc-300 px-3 py-2 font-mono text-sm"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm"
             />
             <div class="flex gap-3 text-sm">
               <label class="flex items-center gap-1.5 cursor-pointer">
@@ -650,7 +730,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
           </div>
 
         <% _ -> %>
-          <p class="text-sm text-zinc-500 italic">Sin autenticación.</p>
+          <p class="text-sm text-zinc-500 dark:text-zinc-400 italic">Sin autenticación.</p>
       <% end %>
     </div>
     """
@@ -662,16 +742,16 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
   def response_panel(assigns) do
     ~H"""
-    <div class="rounded-lg border border-zinc-200 bg-white">
+    <div class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
       <%= cond do %>
         <% @in_flight? -> %>
           <div class="p-6">
-            <p class="text-sm text-zinc-500 animate-pulse">Sending request…</p>
+            <p class="text-sm text-zinc-500 dark:text-zinc-400 animate-pulse">Sending request…</p>
           </div>
 
         <% is_nil(@response) -> %>
           <div class="p-6">
-            <p class="text-sm text-zinc-400">No response yet — click Send to fire a request.</p>
+            <p class="text-sm text-zinc-400 dark:text-zinc-500 dark:text-zinc-400">No response yet — click Send to fire a request.</p>
           </div>
 
         <% @response.error -> %>
@@ -679,19 +759,19 @@ defmodule TestFlowPhxWeb.TesterComponents do
             <p class="text-sm font-medium text-red-600">
               Error: <span class="font-mono">{@response.error.type}</span>
             </p>
-            <p class="text-sm text-zinc-700 font-mono break-all">{@response.error.message}</p>
-            <p class="text-xs text-zinc-500">Duration: {@response.duration_ms} ms</p>
+            <p class="text-sm text-zinc-700 dark:text-zinc-300 font-mono break-all">{@response.error.message}</p>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400">Duration: {@response.duration_ms} ms</p>
           </div>
 
         <% true -> %>
-          <header class="flex items-center justify-between px-4 py-2 border-b border-zinc-200">
+          <header class="flex items-center justify-between px-4 py-2 border-b border-zinc-200 dark:border-zinc-800">
             <div class="flex gap-3 items-center text-sm">
               <span class={status_pill_class(@response.status)}>{@response.status}</span>
-              <span class="text-zinc-500">{@response.duration_ms} ms</span>
-              <span class="text-zinc-500">{format_size(@response.size_bytes)}</span>
+              <span class="text-zinc-500 dark:text-zinc-400">{@response.duration_ms} ms</span>
+              <span class="text-zinc-500 dark:text-zinc-400">{format_size(@response.size_bytes)}</span>
             </div>
           </header>
-          <div class="flex gap-1 px-4 py-1 border-b border-zinc-200">
+          <div class="flex gap-1 px-4 py-1 border-b border-zinc-200 dark:border-zinc-800">
             <.subtab
               :for={{label, key} <- [{"Body", :body}, {"Headers", :headers}, {"Raw", :raw}]}
               label={label}
@@ -704,21 +784,21 @@ defmodule TestFlowPhxWeb.TesterComponents do
             <%= case @active do %>
               <% :body -> %>
                 <%= if @response.body_decoded do %>
-                  <pre class="text-xs font-mono whitespace-pre-wrap text-zinc-800">{pretty_json(@response.body_decoded)}</pre>
+                  <pre class="text-xs font-mono whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">{pretty_json(@response.body_decoded)}</pre>
                 <% else %>
-                  <pre class="text-xs font-mono whitespace-pre-wrap text-zinc-800">{@response.body}</pre>
+                  <pre class="text-xs font-mono whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">{@response.body}</pre>
                 <% end %>
 
               <% :headers -> %>
                 <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-xs font-mono">
                   <%= for {k, v} <- @response.headers do %>
-                    <dt class="text-zinc-500">{k}</dt>
-                    <dd class="text-zinc-800 break-all">{v}</dd>
+                    <dt class="text-zinc-500 dark:text-zinc-400">{k}</dt>
+                    <dd class="text-zinc-800 dark:text-zinc-200 break-all">{v}</dd>
                   <% end %>
                 </dl>
 
               <% :raw -> %>
-                <pre class="text-xs font-mono whitespace-pre-wrap text-zinc-800">{@response.body}</pre>
+                <pre class="text-xs font-mono whitespace-pre-wrap text-zinc-800 dark:text-zinc-200">{@response.body}</pre>
             <% end %>
           </div>
       <% end %>
@@ -742,8 +822,8 @@ defmodule TestFlowPhxWeb.TesterComponents do
       class={[
         "px-3 py-1.5 text-sm rounded-md transition-colors",
         if(@active?,
-          do: "bg-zinc-100 text-zinc-900 font-medium",
-          else: "text-zinc-500 hover:text-zinc-800"
+          do: "bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-medium",
+          else: "text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200"
         )
       ]}
     >
@@ -759,7 +839,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
         status >= 300 and status < 400 -> "bg-sky-100 text-sky-700"
         status >= 400 and status < 500 -> "bg-amber-100 text-amber-700"
         status >= 500 -> "bg-red-100 text-red-700"
-        true -> "bg-zinc-100 text-zinc-700"
+        true -> "bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
       end
 
     "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-mono font-semibold " <>
@@ -768,7 +848,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
   defp status_pill_class(_),
     do:
-      "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-mono font-semibold bg-zinc-100 text-zinc-700"
+      "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-mono font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
 
   defp format_size(bytes) when is_integer(bytes) and bytes < 1024, do: "#{bytes} B"
 
@@ -801,7 +881,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
     do: status_pill_class(status) |> String.replace("px-2 py-0.5 text-xs", "px-1.5 text-[10px]")
 
   defp history_status_class(_, _),
-    do: "inline-flex items-center rounded-md px-1.5 text-[10px] font-mono font-semibold bg-zinc-100 text-zinc-700"
+    do: "inline-flex items-center rounded-md px-1.5 text-[10px] font-mono font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300"
 
   defp format_ran_at(%DateTime{} = dt) do
     diff = DateTime.diff(DateTime.utc_now(), dt, :second)
@@ -835,7 +915,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
         "PUT" -> "text-amber-700"
         "PATCH" -> "text-violet-700"
         "DELETE" -> "text-red-700"
-        _ -> "text-zinc-700"
+        _ -> "text-zinc-700 dark:text-zinc-300"
       end
 
     "text-xs font-mono font-bold " <> family

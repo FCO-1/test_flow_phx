@@ -6,6 +6,7 @@ const fs = require("fs")
 const path = require("path")
 
 module.exports = {
+  darkMode: "class",
   content: [
     "./js/**/*.js",
     "../lib/test_flow_phx_web.ex",
@@ -28,6 +29,11 @@ module.exports = {
     plugin(({addVariant}) => addVariant("phx-click-loading", [".phx-click-loading&", ".phx-click-loading &"])),
     plugin(({addVariant}) => addVariant("phx-submit-loading", [".phx-submit-loading&", ".phx-submit-loading &"])),
     plugin(({addVariant}) => addVariant("phx-change-loading", [".phx-change-loading&", ".phx-change-loading &"])),
+
+    // Density variants — driven by a `density-compact` / `density-fluid` class
+    // applied to <html> (standard is the default, no prefix needed).
+    plugin(({addVariant}) => addVariant("compact", [".density-compact &", ".density-compact&"])),
+    plugin(({addVariant}) => addVariant("fluid", [".density-fluid &", ".density-fluid&"])),
 
     // Embeds Heroicons (https://heroicons.com) into your app.css bundle
     // See your `CoreComponents.icon/1` for more information.

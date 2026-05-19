@@ -23,8 +23,93 @@ import {LiveSocket} from "phoenix_live_view"
 import topbar from "../vendor/topbar"
 
 let csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+
+let Hooks = {}
+
+function applyTheme(t) {
+  let dark =
+    t === "dark" ||
+    (t === "system" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-color-scheme: dark)").matches)
+  document.documentElement.classList.toggle("dark", !!dark)
+}
+
+Hooks.ThemeToggle = {
+  mounted() {
+    let stored = (() => {
+      try { return localStorage.getItem("tf:theme") } catch (_) { return null }
+    })()
+    let current = stored || "system"
+    this.pushEvent("theme:current", {theme: current})
+
+    this.handleEvent("theme:set", ({theme}) => {
+      try { localStorage.setItem("tf:theme", theme) } catch (_) {}
+      applyTheme(theme)
+    })
+
+    // Re-evaluate when system preference changes (only matters for :system).
+    if (window.matchMedia) {
+      let mql = window.matchMedia("(prefers-color-scheme: dark)")
+      this._mqlListener = () => {
+        let t = (() => { try { return localStorage.getItem("tf:theme") } catch (_) { return "system" } })() || "system"
+        if (t === "system") applyTheme("system")
+      }
+      mql.addEventListener ? mql.addEventListener("change", this._mqlListener) : mql.addListener(this._mqlListener)
+      this._mql = mql
+    }
+  },
+  destroyed() {
+    if (this._mql && this._mqlListener) {
+      this._mql.removeEventListener ? this._mql.removeEventListener("change", this._mqlListener) : this._mql.removeListener(this._mqlListener)
+    }
+  }
+}
+
+function applyDensity(d) {
+  let html = document.documentElement
+  html.classList.remove("density-compact", "density-fluid")
+  if (d === "compact") html.classList.add("density-compact")
+  if (d === "fluid") html.classList.add("density-fluid")
+}
+
+Hooks.DensityToggle = {
+  mounted() {
+    let stored = (() => {
+      try { return localStorage.getItem("tf:density") } catch (_) { return null }
+    })()
+    let current = stored || "standard"
+    this.pushEvent("density:current", {density: current})
+
+    this.handleEvent("density:set", ({density}) => {
+      try { localStorage.setItem("tf:density", density) } catch (_) {}
+      applyDensity(density)
+    })
+  }
+}
+
+Hooks.ClipboardCopy = {
+  mounted() {
+    this.handleEvent("clipboard:copy", ({text}) => {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text)
+      } else {
+        const ta = document.createElement("textarea")
+        ta.value = text
+        ta.style.position = "fixed"
+        ta.style.opacity = "0"
+        document.body.appendChild(ta)
+        ta.select()
+        try { document.execCommand("copy") } catch (_) {}
+        document.body.removeChild(ta)
+      }
+    })
+  }
+}
+
 let liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
+  hooks: Hooks,
   params: {_csrf_token: csrfToken}
 })
 

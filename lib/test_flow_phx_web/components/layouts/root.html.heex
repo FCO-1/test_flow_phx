@@ -7,11 +7,28 @@
     <.live_title default="TestFlowPhx" suffix=" · Phoenix Framework">
       {assigns[:page_title]}
     </.live_title>
+    <script>
+      (function () {
+        try {
+          var t = localStorage.getItem("tf:theme") || "system";
+          var dark =
+            t === "dark" ||
+            (t === "system" &&
+              window.matchMedia &&
+              window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) document.documentElement.classList.add("dark");
+
+          var d = localStorage.getItem("tf:density") || "standard";
+          if (d === "compact") document.documentElement.classList.add("density-compact");
+          if (d === "fluid") document.documentElement.classList.add("density-fluid");
+        } catch (_) {}
+      })();
+    </script>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
   </head>
-  <body class="bg-white">
+  <body class="bg-white dark:bg-zinc-950 dark:text-zinc-100">
     {@inner_content}
   </body>
 </html>
