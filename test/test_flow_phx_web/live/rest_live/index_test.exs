@@ -782,6 +782,54 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
     end
   end
 
+  describe "variables sidebar (Fase M)" do
+    test "pestaña Variables aparece y se puede activar", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/")
+
+      assert html =~ "Variables"
+
+      assert view
+             |> element("aside button", "Variables")
+             |> render_click() =~ "Globals"
+    end
+
+    test "add_global_row añade una fila editable", %{conn: conn} do
+      {:ok, view, _} = live(conn, "/")
+      view |> element("aside button", "Variables") |> render_click()
+
+      html = view |> element("button", "+ Agregar variable") |> render_click()
+      assert html =~ ~s(name="globals[0][name]")
+    end
+
+    test "send aplica vars globales al request enviado", %{conn: conn} do
+      FakeHttpExecutor.stage(%Response{status: 200, body: "ok"})
+
+      {:ok, view, _} = live(conn, "/")
+      view |> element("aside button", "Variables") |> render_click()
+      view |> element("button", "+ Agregar variable") |> render_click()
+
+      # Set the global var via form change
+      render_change(view |> element("aside form"), %{
+        "globals" => %{"0" => %{"name" => "base_url", "value" => "https://api.test", "enabled" => "true"}}
+      })
+
+      # Set the URL on the active request using the template
+      view |> element("button", "Params") |> render_click()
+      render_change(view |> element("#request-form"), %{
+        "request" => %{"url" => "{{base_url}}/users", "method" => "GET"}
+      })
+
+      # Send — el SendRequest corre en un Task; FakeHttpExecutor.last_request
+      # se guarda síncronamente al ejecutarse el fake `send`, así que para
+      # cuando volvemos del render_submit el dato ya está capturado.
+      view |> element("#request-form") |> render_submit()
+      Process.sleep(50)
+
+      sent = FakeHttpExecutor.last_request()
+      assert sent.url == "https://api.test/users"
+    end
+  end
+
   defp active_tab_id(html) do
     [_, id] = Regex.run(~r/name="active_tab_id" value="([^"]+)"/, html)
     id

@@ -391,6 +391,69 @@ defmodule TestFlowPhxWeb.TesterComponents do
     """
   end
 
+  attr :vars, :list, required: true
+
+  def variables_sidebar(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 px-1">Globals</h3>
+      </div>
+
+      <p class="text-xs text-zinc-400 dark:text-zinc-500 px-1 italic">
+        Usa <code class="font-mono">{"{{nombre}}"}</code> en URL, headers, body o auth.
+      </p>
+
+      <form phx-change="update_globals" class="space-y-1.5">
+        <div :for={{row, idx} <- Enum.with_index(@vars)} class="flex gap-1 items-center">
+          <input type="hidden" name={"globals[#{idx}][enabled]"} value="false" />
+          <input
+            type="checkbox"
+            name={"globals[#{idx}][enabled]"}
+            value="true"
+            checked={row.enabled}
+            class="rounded border-zinc-300 dark:border-zinc-700"
+            title="Activa/desactiva esta variable"
+          />
+          <input
+            type="text"
+            name={"globals[#{idx}][name]"}
+            value={row.name}
+            placeholder="nombre"
+            phx-debounce="300"
+            class="flex-1 min-w-0 rounded border border-zinc-300 dark:border-zinc-700 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+          />
+          <input
+            type="text"
+            name={"globals[#{idx}][value]"}
+            value={row.value}
+            placeholder="valor"
+            phx-debounce="300"
+            class="flex-1 min-w-0 rounded border border-zinc-300 dark:border-zinc-700 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+          />
+          <button
+            type="button"
+            phx-click="remove_global_row"
+            phx-value-index={idx}
+            class="text-zinc-400 dark:text-zinc-500 hover:text-red-600 px-1 text-sm leading-none"
+            aria-label="Eliminar variable"
+          >
+            ×
+          </button>
+        </div>
+      </form>
+
+      <button
+        type="button"
+        phx-click="add_global_row"
+        class="text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 px-1"
+      >
+        + Agregar variable
+      </button>
+    </div>
+    """
+  end
+
   attr :state, :map, required: true
   attr :collections, :list, required: true
 

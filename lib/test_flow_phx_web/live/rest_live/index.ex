@@ -24,15 +24,19 @@ defmodule TestFlowPhxWeb.RestLive.Index do
 
   alias TestFlowPhx.Domain.{Request, Response}
 
+  alias TestFlowPhx.Domain.Collection
+
   alias TestFlowPhx.UseCases.{
     CollectionExport,
     CollectionImport,
     Collections,
     CurlExport,
+    Globals,
     History,
     SendRequest,
     Settings,
-    Translations
+    Translations,
+    Variables
   }
 
   alias TestFlowPhxWeb.RequestParams
@@ -61,6 +65,7 @@ defmodule TestFlowPhxWeb.RestLive.Index do
       |> assign(:editing_collection_id, nil)
       |> assign(:save_modal, nil)
       |> assign(:history, RepoHelpers.load_history())
+      |> assign(:globals, RepoHelpers.load_globals())
       |> assign(:curl_copied?, false)
       |> assign(:theme, :system)
       |> assign(:density, :standard)
@@ -75,7 +80,7 @@ defmodule TestFlowPhxWeb.RestLive.Index do
 
   @impl true
   def handle_event("sidebar_section", %{"section" => section}, socket)
-      when section in ["collections", "history"] do
+      when section in ["collections", "history", "variables"] do
     {:noreply, assign(socket, :sidebar_section, String.to_existing_atom(section))}
   end
 
@@ -286,11 +291,12 @@ defmodule TestFlowPhxWeb.RestLive.Index do
         end
 
       request = socket.assigns.active_request
+      vars = active_vars(socket)
 
       task =
         Task.Supervisor.async_nolink(
           TestFlowPhx.TaskSupervisor,
-          fn -> SendRequest.execute(request) end
+          fn -> SendRequest.execute(request, vars: vars) end
         )
 
       socket =
@@ -436,7 +442,7 @@ defmodule TestFlowPhxWeb.RestLive.Index do
   # ---------- Copy as cURL ----------
 
   def handle_event("copy_as_curl", _params, socket) do
-    curl = CurlExport.from_request(socket.assigns.active_request)
+    curl = CurlExport.from_request(socket.assigns.active_request, active_vars(socket))
     Process.send_after(self(), :clear_curl_copied, 1500)
 
     socket =
@@ -577,7 +583,7 @@ defmodule TestFlowPhxWeb.RestLive.Index do
       ) do
     with %{} = coll <- Enum.find(socket.assigns.collections, &(&1.id == coll_id)),
          %Request{} = req <- Enum.find(coll.requests, &(&1.id == req_id)) do
-      tab = %{req | id: Request.new_id()}
+      tab = %{req | id: Request.new_id(), collection_id: coll_id}
 
       socket =
         socket
@@ -659,11 +665,12 @@ defmodule TestFlowPhxWeb.RestLive.Index do
 
         if coll_id do
           base = socket.assigns.active_request
-          req = %{base | id: Request.new_id(), name: name}
+          req = %{base | id: Request.new_id(), name: name, collection_id: coll_id}
           RepoHelpers.try_call(fn -> Collections.add_request(coll_id, req) end)
 
           socket =
             socket
+            |> TabState.update_active(fn r -> %{r | collection_id: coll_id} end)
             |> assign(:save_modal, nil)
             |> update(:expanded_collections, &MapSet.put(&1, coll_id))
             |> RepoHelpers.refresh_collections()
@@ -700,6 +707,29 @@ defmodule TestFlowPhxWeb.RestLive.Index do
   def handle_event("clear_history", _params, socket) do
     RepoHelpers.try_call(fn -> History.clear() end)
     {:noreply, RepoHelpers.refresh_history(socket)}
+  end
+
+  # ---------- Globals editor ----------
+
+  def handle_event("update_globals", %{"globals" => params}, socket) do
+    vars = parse_globals_params(params)
+    RepoHelpers.try_call(fn -> Globals.replace(vars) end)
+    {:noreply, assign(socket, :globals, vars)}
+  end
+
+  def handle_event("update_globals", _params, socket), do: {:noreply, socket}
+
+  def handle_event("add_global_row", _params, socket) do
+    vars = socket.assigns.globals ++ [Variables.empty()]
+    RepoHelpers.try_call(fn -> Globals.replace(vars) end)
+    {:noreply, assign(socket, :globals, vars)}
+  end
+
+  def handle_event("remove_global_row", %{"index" => idx_str}, socket) do
+    idx = String.to_integer(idx_str)
+    vars = List.delete_at(socket.assigns.globals, idx)
+    RepoHelpers.try_call(fn -> Globals.replace(vars) end)
+    {:noreply, assign(socket, :globals, vars)}
   end
 
   # ---------- Task results ----------
@@ -750,4 +780,35 @@ defmodule TestFlowPhxWeb.RestLive.Index do
     do: {:noreply, assign(socket, :curl_copied?, false)}
 
   def handle_info(_other, socket), do: {:noreply, socket}
+
+  # ---------- Helpers de variables ----------
+
+  defp active_vars(socket) do
+    globals = socket.assigns.globals
+    req = socket.assigns.active_request
+
+    collection_vars =
+      with id when is_binary(id) <- req.collection_id,
+           %Collection{variables: vars} <- Enum.find(socket.assigns.collections, &(&1.id == id)) do
+        vars
+      else
+        _ -> []
+      end
+
+    Variables.merge(globals, collection_vars)
+  end
+
+  defp parse_globals_params(params) when is_map(params) do
+    params
+    |> Enum.sort_by(fn {idx_str, _} -> String.to_integer(idx_str) end)
+    |> Enum.map(fn {_idx, row} ->
+      %{
+        name: Map.get(row, "name", ""),
+        value: Map.get(row, "value", ""),
+        enabled: Map.get(row, "enabled", "false") in ["true", true, "on"]
+      }
+    end)
+  end
+
+  defp parse_globals_params(_), do: []
 end

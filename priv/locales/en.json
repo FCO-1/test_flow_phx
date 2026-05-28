@@ -2,6 +2,7 @@
   "sidebar": {
     "collections_tab": "Collections",
     "history_tab": "History",
+    "variables_tab": "Variables",
     "saved": "Saved",
     "recent": "Recent",
     "new_collection_placeholder": "+ New collection",

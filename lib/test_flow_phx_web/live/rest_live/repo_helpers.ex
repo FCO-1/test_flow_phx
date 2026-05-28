@@ -8,7 +8,7 @@ defmodule TestFlowPhxWeb.RestLive.RepoHelpers do
 
   import Phoenix.Component, only: [assign: 3]
 
-  alias TestFlowPhx.UseCases.{Collections, History}
+  alias TestFlowPhx.UseCases.{Collections, Globals, History}
 
   @spec load_collections() :: list()
   def load_collections do
@@ -31,6 +31,17 @@ defmodule TestFlowPhxWeb.RestLive.RepoHelpers do
   @spec refresh_history(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
   def refresh_history(socket),
     do: assign(socket, :history, load_history())
+
+  @spec load_globals() :: list()
+  def load_globals do
+    Globals.list()
+  catch
+    :exit, _ -> []
+  end
+
+  @spec refresh_globals(Phoenix.LiveView.Socket.t()) :: Phoenix.LiveView.Socket.t()
+  def refresh_globals(socket),
+    do: assign(socket, :globals, load_globals())
 
   @doc """
   Ejecuta una función que muta el repo, tragando `:exit` (GenServer
