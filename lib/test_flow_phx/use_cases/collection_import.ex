@@ -11,7 +11,7 @@ defmodule TestFlowPhx.UseCases.CollectionImport do
   alias TestFlowPhx.UseCases.Collections
 
   @format "testflow-collection"
-  @max_version 1
+  @max_version 2
 
   @type error ::
           :invalid_json
@@ -82,18 +82,21 @@ defmodule TestFlowPhx.UseCases.CollectionImport do
   defp collections_list(_), do: {:error, :malformed}
 
   defp load_collection_with_fresh_ids(map) when is_map(map) do
+    collection_id = Request.new_id()
+
     %Collection{
-      id: Request.new_id(),
+      id: collection_id,
       name: Map.get(map, "name", "Imported"),
       requests:
         map
         |> Map.get("requests", [])
-        |> Enum.map(&load_request_with_fresh_id/1)
+        |> Enum.map(&load_request_with_fresh_id(&1, collection_id)),
+      variables: Serializer.load_variables(Map.get(map, "variables"))
     }
   end
 
-  defp load_request_with_fresh_id(map) when is_map(map) do
+  defp load_request_with_fresh_id(map, collection_id) when is_map(map) do
     req = Serializer.load_request(map)
-    %{req | id: Request.new_id()}
+    %{req | id: Request.new_id(), collection_id: collection_id}
   end
 end

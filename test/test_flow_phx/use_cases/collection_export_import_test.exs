@@ -30,13 +30,14 @@ defmodule TestFlowPhx.UseCases.CollectionExportImportTest do
       env = CollectionExport.build(c)
 
       assert env["format"] == "testflow-collection"
-      assert env["version"] == 1
+      assert env["version"] == 2
       assert is_binary(env["exported_at"])
-      assert [%{"name" => "Smoke", "requests" => reqs}] = env["collections"]
+      assert [%{"name" => "Smoke", "requests" => reqs, "variables" => []}] = env["collections"]
       assert length(reqs) == 2
 
-      # IDs stripped from export so import doesn't collide.
+      # IDs y collection_id stripped del export para que import no colisione.
       assert Enum.all?(reqs, fn r -> not Map.has_key?(r, "id") end)
+      assert Enum.all?(reqs, fn r -> not Map.has_key?(r, "collection_id") end)
     end
 
     test "multiple collections envelope" do
@@ -114,6 +115,63 @@ defmodule TestFlowPhx.UseCases.CollectionExportImportTest do
       assert {:ok, 1} = CollectionImport.import_all(json)
       # Originally seeded "Dup" + two imports = 3 collections named "Dup".
       assert Collections.list() |> Enum.count(&(&1.name == "Dup")) == 3
+    end
+  end
+
+  describe "variables en export/import (Fase M.6)" do
+    test "v2 export incluye variables y round-trip las preserva" do
+      c = Collections.create("With Vars")
+
+      :ok =
+        Collections.set_variables(c.id, [
+          %{name: "host", value: "api.test", enabled: true},
+          %{name: "off", value: "x", enabled: false}
+        ])
+
+      [stored] = Collections.list() |> Enum.filter(&(&1.id == c.id))
+      json = CollectionExport.to_json(stored)
+
+      assert {:ok, [imported]} = CollectionImport.parse(json)
+
+      assert imported.variables == [
+               %{name: "host", value: "api.test", enabled: true},
+               %{name: "off", value: "x", enabled: false}
+             ]
+    end
+
+    test "import de archivo v1 (sin campo variables) carga con vars vacías" do
+      legacy_json = ~s({
+        "format": "testflow-collection",
+        "version": 1,
+        "exported_at": "2026-05-17T00:00:00Z",
+        "collections": [
+          {
+            "name": "Legacy",
+            "requests": [
+              {"method":"GET","url":"https://api/x","name":"r","query_params":[],"headers":[],"body_type":"none","body_text":"","body_form":[],"auth":{"type":"none"}}
+            ]
+          }
+        ]
+      })
+
+      assert {:ok, [imported]} = CollectionImport.parse(legacy_json)
+      assert imported.name == "Legacy"
+      assert imported.variables == []
+      assert length(imported.requests) == 1
+    end
+
+    test "requests importados llevan collection_id apuntando a la colección nueva" do
+      c = Collections.create("Parent")
+      Collections.add_request(c.id, Request.new(method: "GET", url: "https://x"))
+      [stored] = Collections.list() |> Enum.filter(&(&1.id == c.id))
+
+      json = CollectionExport.to_json(stored)
+      {:ok, [imported]} = CollectionImport.parse(json)
+
+      assert [%Request{collection_id: cid}] = imported.requests
+      assert cid == imported.id
+      # Y NO es el id de la colección original
+      refute cid == stored.id
     end
   end
 end
