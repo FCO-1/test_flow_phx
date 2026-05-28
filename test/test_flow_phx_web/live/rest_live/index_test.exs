@@ -788,9 +788,10 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
 
       assert html =~ "Variables"
 
+      # El header del editor traduce a "Globales" en es-MX (locale default).
       assert view
              |> element("aside button", "Variables")
-             |> render_click() =~ "Globals"
+             |> render_click() =~ "Globales"
     end
 
     test "add_global_row añade una fila editable", %{conn: conn} do

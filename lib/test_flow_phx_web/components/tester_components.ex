@@ -406,16 +406,19 @@ defmodule TestFlowPhxWeb.TesterComponents do
   end
 
   attr :vars, :list, required: true
+  attr :locale, :string, required: true
 
   def variables_sidebar(assigns) do
     ~H"""
     <div class="space-y-2">
       <div class="flex items-center justify-between">
-        <h3 class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 px-1">Globals</h3>
+        <h3 class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 px-1">
+          {Translations.t(@locale, "variables.globals_header")}
+        </h3>
       </div>
 
       <p class="text-xs text-zinc-400 dark:text-zinc-500 px-1 italic">
-        Usa <code class="font-mono">{"{{nombre}}"}</code> en URL, headers, body o auth.
+        {Translations.t(@locale, "variables.helper")}
       </p>
 
       <form phx-change="update_globals" class="space-y-1.5">
@@ -427,13 +430,13 @@ defmodule TestFlowPhxWeb.TesterComponents do
             value="true"
             checked={row.enabled}
             class="rounded border-zinc-300 dark:border-zinc-700"
-            title="Activa/desactiva esta variable"
+            title={Translations.t(@locale, "variables.toggle_title")}
           />
           <input
             type="text"
             name={"globals[#{idx}][name]"}
             value={row.name}
-            placeholder="nombre"
+            placeholder={Translations.t(@locale, "variables.name_placeholder")}
             phx-debounce="300"
             class="flex-1 min-w-0 rounded border border-zinc-300 dark:border-zinc-700 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
           />
@@ -441,7 +444,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             type="text"
             name={"globals[#{idx}][value]"}
             value={row.value}
-            placeholder="valor"
+            placeholder={Translations.t(@locale, "variables.value_placeholder")}
             phx-debounce="300"
             class="flex-1 min-w-0 rounded border border-zinc-300 dark:border-zinc-700 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
           />
@@ -450,7 +453,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             phx-click="remove_global_row"
             phx-value-index={idx}
             class="text-zinc-400 dark:text-zinc-500 hover:text-red-600 px-1 text-sm leading-none"
-            aria-label="Eliminar variable"
+            aria-label={Translations.t(@locale, "variables.remove_row_label")}
           >
             ×
           </button>
@@ -462,7 +465,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
         phx-click="add_global_row"
         class="text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 px-1"
       >
-        + Agregar variable
+        {Translations.t(@locale, "variables.add_row")}
       </button>
     </div>
     """
@@ -1122,6 +1125,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
   end
 
   attr :state, :map, required: true
+  attr :locale, :string, required: true
 
   def collection_variables_modal(assigns) do
     ~H"""
@@ -1133,11 +1137,10 @@ defmodule TestFlowPhxWeb.TesterComponents do
         phx-key="Escape"
       >
         <h2 class="text-base font-semibold text-zinc-800 dark:text-zinc-200 mb-1">
-          Variables de "{@state.collection_name}"
+          {Translations.t(@locale, "variables.modal_title", name: @state.collection_name)}
         </h2>
         <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-3">
-          Estas variables solo aplican a requests guardados en esta colección.
-          Tienen precedencia sobre las globales con el mismo nombre.
+          {Translations.t(@locale, "variables.modal_help")}
         </p>
 
         <form phx-change="update_collection_vars" class="space-y-1.5">
@@ -1150,12 +1153,13 @@ defmodule TestFlowPhxWeb.TesterComponents do
               value="true"
               checked={row.enabled}
               class="rounded border-zinc-300 dark:border-zinc-700"
+              title={Translations.t(@locale, "variables.toggle_title")}
             />
             <input
               type="text"
               name={"vars[#{idx}][name]"}
               value={row.name}
-              placeholder="nombre"
+              placeholder={Translations.t(@locale, "variables.name_placeholder")}
               phx-debounce="300"
               class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
@@ -1163,7 +1167,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               type="text"
               name={"vars[#{idx}][value]"}
               value={row.value}
-              placeholder="valor"
+              placeholder={Translations.t(@locale, "variables.value_placeholder")}
               phx-debounce="300"
               class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
             />
@@ -1172,7 +1176,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
               phx-click="remove_collection_var_row"
               phx-value-index={idx}
               class="text-zinc-400 dark:text-zinc-500 hover:text-red-600 px-2"
-              aria-label="Eliminar"
+              aria-label={Translations.t(@locale, "variables.remove_row_label")}
             >×</button>
           </div>
         </form>
@@ -1183,7 +1187,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             phx-click="add_collection_var_row"
             class="text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100"
           >
-            + Agregar variable
+            {Translations.t(@locale, "variables.add_row")}
           </button>
 
           <button
@@ -1191,7 +1195,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
             phx-click="close_collection_vars_modal"
             class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-900"
           >
-            Cerrar
+            {Translations.t(@locale, "variables.modal_close")}
           </button>
         </div>
       </div>

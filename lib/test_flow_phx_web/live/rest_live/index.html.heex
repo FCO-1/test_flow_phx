@@ -40,7 +40,7 @@
         <% :history -> %>
           <TesterComponents.history_sidebar history={@history} />
         <% :variables -> %>
-          <TesterComponents.variables_sidebar vars={@globals} />
+          <TesterComponents.variables_sidebar vars={@globals} locale={@locale} />
       <% end %>
     </div>
 
@@ -120,5 +120,6 @@
   <TesterComponents.collection_variables_modal
     :if={@collection_vars_modal}
     state={@collection_vars_modal}
+    locale={@locale}
   />
 </div>

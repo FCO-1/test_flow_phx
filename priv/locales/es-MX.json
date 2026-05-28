@@ -65,5 +65,18 @@
   "languages": {
     "en": "English",
     "es-MX": "Español (México)"
+  },
+  "variables": {
+    "globals_header": "Globales",
+    "helper": "Usa {{nombre}} en URL, encabezados, cuerpo o auth.",
+    "name_placeholder": "nombre",
+    "value_placeholder": "valor",
+    "add_row": "+ Agregar variable",
+    "remove_row_label": "Eliminar variable",
+    "toggle_title": "Activa/desactiva esta variable",
+    "collection_button_title": "Variables (%{count})",
+    "modal_title": "Variables de \"%{name}\"",
+    "modal_help": "Estas variables solo aplican a requests guardados en esta colección. Tienen precedencia sobre las globales con el mismo nombre.",
+    "modal_close": "Cerrar"
   }
 }
