@@ -32,7 +32,8 @@ defmodule TestFlowPhx.Domain.Request do
           body_type: body_type(),
           body_text: String.t(),
           body_form: [form_row()],
-          auth: auth()
+          auth: auth(),
+          collection_id: String.t() | nil
         }
 
   defstruct id: nil,
@@ -44,7 +45,8 @@ defmodule TestFlowPhx.Domain.Request do
             body_type: :none,
             body_text: "",
             body_form: [],
-            auth: %{type: :none}
+            auth: %{type: :none},
+            collection_id: nil
 
   @spec new(keyword() | map()) :: t()
   def new(attrs \\ %{}) do
