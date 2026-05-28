@@ -27,5 +27,8 @@ defmodule TestFlowPhx.Domain.Ports.RequestRepo do
   @callback active_tab_id() :: String.t() | nil
   @callback set_tabs([Request.t()], String.t() | nil) :: :ok
 
+  @callback list_globals() :: [Collection.variable()]
+  @callback replace_globals([Collection.variable()]) :: :ok
+
   @callback subscribe() :: :ok
 end

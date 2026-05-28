@@ -56,5 +56,20 @@ defmodule TestFlowPhx.UseCases.Collections do
       when is_binary(collection_id) and is_binary(request_id),
       do: repo().delete_request_in(collection_id, request_id)
 
+  @doc """
+  Reemplaza la lista de variables de una colección por la lista provista.
+  Lee la colección, hace upsert con `variables` actualizadas. Mismo patrón
+  read-update-upsert que `rename/2` — race de escritura concurrente
+  asumida aceptable para una app single-user.
+  """
+  @spec set_variables(String.t(), [Collection.variable()]) :: :ok | {:error, :not_found}
+  def set_variables(collection_id, vars)
+      when is_binary(collection_id) and is_list(vars) do
+    case Enum.find(list(), &(&1.id == collection_id)) do
+      nil -> {:error, :not_found}
+      %Collection{} = c -> repo().upsert_collection(%{c | variables: vars})
+    end
+  end
+
   defp repo, do: Application.fetch_env!(:test_flow_phx, :request_repo)
 end

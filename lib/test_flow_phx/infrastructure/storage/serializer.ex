@@ -40,13 +40,14 @@ defmodule TestFlowPhx.Infrastructure.Storage.Serializer do
         history: history,
         tabs: tabs,
         active_tab_id: active_tab_id
-      }) do
+      } = doc) do
     %{
       "version" => 1,
       "collections" => Enum.map(collections, &dump_collection/1),
       "history" => Enum.map(history, &dump_history/1),
       "tabs" => Enum.map(tabs, &dump_request/1),
-      "active_tab_id" => active_tab_id
+      "active_tab_id" => active_tab_id,
+      "globals" => dump_variables(Map.get(doc, :globals, []))
     }
   end
 
@@ -61,7 +62,8 @@ defmodule TestFlowPhx.Infrastructure.Storage.Serializer do
       "body_type" => Atom.to_string(r.body_type),
       "body_text" => r.body_text,
       "body_form" => Enum.map(r.body_form, &dump_form_row/1),
-      "auth" => dump_auth(r.auth)
+      "auth" => dump_auth(r.auth),
+      "collection_id" => r.collection_id
     }
   end
 
@@ -69,9 +71,16 @@ defmodule TestFlowPhx.Infrastructure.Storage.Serializer do
     %{
       "id" => c.id,
       "name" => c.name,
-      "requests" => Enum.map(c.requests, &dump_request/1)
+      "requests" => Enum.map(c.requests, &dump_request/1),
+      "variables" => dump_variables(c.variables)
     }
   end
+
+  def dump_variables(rows) when is_list(rows), do: Enum.map(rows, &dump_variable/1)
+  def dump_variables(_), do: []
+
+  defp dump_variable(%{name: n, value: v, enabled: e}),
+    do: %{"name" => n, "value" => v, "enabled" => e}
 
   def dump_history(%HistoryEntry{} = h) do
     %{
@@ -131,12 +140,13 @@ defmodule TestFlowPhx.Infrastructure.Storage.Serializer do
       collections: map |> Map.get("collections", []) |> Enum.map(&load_collection/1),
       history: map |> Map.get("history", []) |> Enum.map(&load_history/1),
       tabs: map |> Map.get("tabs", []) |> Enum.map(&load_request/1),
-      active_tab_id: Map.get(map, "active_tab_id")
+      active_tab_id: Map.get(map, "active_tab_id"),
+      globals: load_variables(Map.get(map, "globals"))
     }
   end
 
   def empty_document do
-    %{collections: [], history: [], tabs: [], active_tab_id: nil}
+    %{collections: [], history: [], tabs: [], active_tab_id: nil, globals: []}
   end
 
   def load_request(map) when is_map(map) do
@@ -150,7 +160,8 @@ defmodule TestFlowPhx.Infrastructure.Storage.Serializer do
       body_type: load_atom(map["body_type"], @body_types, :none),
       body_text: map["body_text"] || "",
       body_form: load_form_rows(map["body_form"]),
-      auth: load_auth(map["auth"])
+      auth: load_auth(map["auth"]),
+      collection_id: map["collection_id"]
     }
   end
 
@@ -158,9 +169,24 @@ defmodule TestFlowPhx.Infrastructure.Storage.Serializer do
     %Collection{
       id: map["id"],
       name: map["name"] || "",
-      requests: map |> Map.get("requests", []) |> Enum.map(&load_request/1)
+      requests: map |> Map.get("requests", []) |> Enum.map(&load_request/1),
+      variables: load_variables(map["variables"])
     }
   end
+
+  def load_variables(nil), do: []
+
+  def load_variables(rows) when is_list(rows) do
+    Enum.map(rows, fn r ->
+      %{
+        name: r["name"] || "",
+        value: r["value"] || "",
+        enabled: Map.get(r, "enabled", true)
+      }
+    end)
+  end
+
+  def load_variables(_), do: []
 
   def load_history(map) when is_map(map) do
     %HistoryEntry{

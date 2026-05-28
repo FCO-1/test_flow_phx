@@ -69,4 +69,24 @@ defmodule TestFlowPhx.UseCases.CollectionsTest do
     [stored] = Collections.list()
     assert stored.requests == []
   end
+
+  test "set_variables reemplaza la lista de vars; :not_found si id desconocido" do
+    coll = Collections.create("With Vars")
+
+    vars = [
+      %{name: "base_url", value: "https://api", enabled: true},
+      %{name: "off", value: "x", enabled: false}
+    ]
+
+    assert :ok = Collections.set_variables(coll.id, vars)
+    [stored] = Collections.list()
+    assert stored.variables == vars
+
+    # Reemplaza, no merge
+    assert :ok = Collections.set_variables(coll.id, [%{name: "k", value: "v", enabled: true}])
+    [stored] = Collections.list()
+    assert stored.variables == [%{name: "k", value: "v", enabled: true}]
+
+    assert {:error, :not_found} = Collections.set_variables("nope", [])
+  end
 end
