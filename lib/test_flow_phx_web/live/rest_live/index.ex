@@ -70,6 +70,7 @@ defmodule TestFlowPhxWeb.RestLive.Index do
       |> assign(:theme, :system)
       |> assign(:density, :standard)
       |> assign(:settings_modal, nil)
+      |> assign(:collection_vars_modal, nil)
       |> assign(:locale, Settings.get_locale())
       |> TabState.put_active_view()
 
@@ -709,6 +710,48 @@ defmodule TestFlowPhxWeb.RestLive.Index do
     {:noreply, RepoHelpers.refresh_history(socket)}
   end
 
+  # ---------- Collection variables modal ----------
+
+  def handle_event("open_collection_vars_modal", %{"id" => id}, socket) do
+    case Enum.find(socket.assigns.collections, &(&1.id == id)) do
+      nil ->
+        {:noreply, socket}
+
+      %Collection{} = c ->
+        state = %{collection_id: c.id, collection_name: c.name, vars: c.variables}
+        {:noreply, assign(socket, :collection_vars_modal, state)}
+    end
+  end
+
+  def handle_event("close_collection_vars_modal", _params, socket),
+    do: {:noreply, assign(socket, :collection_vars_modal, nil)}
+
+  def handle_event("update_collection_vars", %{"collection_id" => coll_id} = params, socket) do
+    vars = params |> Map.get("vars", %{}) |> parse_vars_params()
+    persist_collection_vars(socket, coll_id, vars)
+  end
+
+  def handle_event("add_collection_var_row", _params, socket) do
+    case socket.assigns.collection_vars_modal do
+      nil ->
+        {:noreply, socket}
+
+      %{collection_id: coll_id, vars: vars} ->
+        persist_collection_vars(socket, coll_id, vars ++ [Variables.empty()])
+    end
+  end
+
+  def handle_event("remove_collection_var_row", %{"index" => idx_str}, socket) do
+    case socket.assigns.collection_vars_modal do
+      nil ->
+        {:noreply, socket}
+
+      %{collection_id: coll_id, vars: vars} ->
+        idx = String.to_integer(idx_str)
+        persist_collection_vars(socket, coll_id, List.delete_at(vars, idx))
+    end
+  end
+
   # ---------- Globals editor ----------
 
   def handle_event("update_globals", %{"globals" => params}, socket) do
@@ -798,7 +841,9 @@ defmodule TestFlowPhxWeb.RestLive.Index do
     Variables.merge(globals, collection_vars)
   end
 
-  defp parse_globals_params(params) when is_map(params) do
+  defp parse_globals_params(params), do: parse_vars_params(params)
+
+  defp parse_vars_params(params) when is_map(params) do
     params
     |> Enum.sort_by(fn {idx_str, _} -> String.to_integer(idx_str) end)
     |> Enum.map(fn {_idx, row} ->
@@ -810,5 +855,22 @@ defmodule TestFlowPhxWeb.RestLive.Index do
     end)
   end
 
-  defp parse_globals_params(_), do: []
+  defp parse_vars_params(_), do: []
+
+  defp persist_collection_vars(socket, coll_id, vars) do
+    RepoHelpers.try_call(fn -> Collections.set_variables(coll_id, vars) end)
+
+    modal_state =
+      case socket.assigns.collection_vars_modal do
+        %{collection_id: ^coll_id} = state -> %{state | vars: vars}
+        other -> other
+      end
+
+    socket =
+      socket
+      |> assign(:collection_vars_modal, modal_state)
+      |> RepoHelpers.refresh_collections()
+
+    {:noreply, socket}
+  end
 end
