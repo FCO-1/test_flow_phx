@@ -11,10 +11,31 @@ defmodule TestFlowPhx.UseCases.SendRequest do
 
   alias TestFlowPhx.Domain.{HistoryEntry, Request, Response}
   alias TestFlowPhx.Infrastructure.Storage.Paths
+  alias TestFlowPhx.UseCases.Variables
 
+  @doc """
+  Envía un request vía el executor configurado.
+
+  ## Opciones
+
+    * `:vars` — mapa `%{name => value}` para resolver placeholders
+      `{{var}}` en URL, query, headers, body y auth antes de enviar.
+      Default `%{}` (no resuelve nada — comportamiento previo a Fase M).
+    * `:record_history?` — default `true`.
+    * `:persist_body?` — default `true`.
+
+  ## Sobre history
+
+  El `HistoryEntry` guarda el **request original** (con placeholders sin
+  resolver), no la versión enviada al wire. Esto permite re-enviar
+  desde history y reaplicar los valores actuales de las vars.
+  """
   @spec execute(Request.t(), keyword()) :: {Response.t(), HistoryEntry.t() | nil}
   def execute(%Request{} = request, opts \\ []) do
-    response = http_executor().send(request, opts)
+    vars = Keyword.get(opts, :vars, %{})
+    resolved = if map_size(vars) == 0, do: request, else: Variables.resolve_request(request, vars)
+
+    response = http_executor().send(resolved, opts)
 
     history_entry =
       if Keyword.get(opts, :record_history?, true) do

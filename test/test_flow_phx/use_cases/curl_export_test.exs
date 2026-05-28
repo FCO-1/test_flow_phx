@@ -199,4 +199,38 @@ defmodule TestFlowPhx.UseCases.CurlExportTest do
 
     assert out =~ ~S{--data-raw 'it'\''s fine'}
   end
+
+  describe "variables (Fase M)" do
+    test "resuelve {{vars}} en URL, headers, body y auth antes de imprimir" do
+      r =
+        req(%{
+          method: "POST",
+          url: "{{base_url}}/users",
+          headers: [%{key: "X-Trace", value: "{{trace}}", enabled: true}],
+          body_type: :json,
+          body_text: ~s({"id":"{{user_id}}"}),
+          auth: %{type: :bearer, token: "{{token}}"}
+        })
+
+      vars = %{
+        "base_url" => "https://api",
+        "trace" => "abc",
+        "user_id" => "u-7",
+        "token" => "secret"
+      }
+
+      out = CurlExport.from_request(r, vars)
+
+      assert out =~ "'https://api/users'"
+      assert out =~ "-H 'X-Trace: abc'"
+      assert out =~ ~s(--data '{"id":"u-7"}')
+      assert out =~ "-H 'Authorization: Bearer secret'"
+      refute out =~ "{{"
+    end
+
+    test "sin vars el comando lleva los placeholders literales" do
+      r = req(%{method: "GET", url: "{{base_url}}/x"})
+      assert CurlExport.from_request(r) =~ "{{base_url}}/x"
+    end
+  end
 end

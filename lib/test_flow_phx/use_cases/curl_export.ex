@@ -8,9 +8,18 @@ defmodule TestFlowPhx.UseCases.CurlExport do
   """
 
   alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.UseCases.Variables
 
-  @spec from_request(Request.t()) :: String.t()
-  def from_request(%Request{} = req) do
+  @doc """
+  Genera el comando `curl` para un request. Si se pasa `vars` (mapa
+  `name => value`), resuelve placeholders `{{var}}` antes de imprimir
+  — el comando exportado va a una terminal donde las vars no existen,
+  así que llevar literales sería inútil.
+  """
+  @spec from_request(Request.t(), %{String.t() => String.t()}) :: String.t()
+  def from_request(%Request{} = req, vars \\ %{}) do
+    req = if map_size(vars) == 0, do: req, else: Variables.resolve_request(req, vars)
+
     parts =
       ["curl"]
       |> append(["-X", req.method])
