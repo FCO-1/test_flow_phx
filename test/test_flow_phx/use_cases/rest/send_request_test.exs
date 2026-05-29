@@ -1,4 +1,4 @@
-defmodule TestFlowPhx.UseCases.SendRequestTest do
+defmodule TestFlowPhx.UseCases.Rest.SendRequestTest do
   @moduledoc """
   Unit tests for the `SendRequest` use case.
 
@@ -9,9 +9,9 @@ defmodule TestFlowPhx.UseCases.SendRequestTest do
 
   use ExUnit.Case, async: false
 
-  alias TestFlowPhx.Domain.{HistoryEntry, Request, Response}
+  alias TestFlowPhx.Domain.{HistoryEntry, Rest.Request, Rest.Response}
   alias TestFlowPhx.Support.FakeHttpExecutor
-  alias TestFlowPhx.UseCases.SendRequest
+  alias TestFlowPhx.UseCases.Rest.SendRequest
 
   setup do
     FakeHttpExecutor.reset()

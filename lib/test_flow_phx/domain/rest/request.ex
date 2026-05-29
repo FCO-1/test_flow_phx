@@ -1,4 +1,4 @@
-defmodule TestFlowPhx.Domain.Request do
+defmodule TestFlowPhx.Domain.Rest.Request do
   @moduledoc """
   Entidad de dominio: borrador de un request HTTP que el usuario está
   editando o por enviar.

@@ -9,7 +9,7 @@ defmodule TestFlowPhx.Domain.Ports.RequestRepo do
   use cases.
   """
 
-  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}
+  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Rest.Request}
 
   @callback list_collections() :: [Collection.t()]
   @callback upsert_collection(Collection.t()) :: :ok

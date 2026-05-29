@@ -1,7 +1,7 @@
 defmodule TestFlowPhx.Infrastructure.Storage.SerializerTest do
   use ExUnit.Case, async: true
 
-  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}
+  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Rest.Request}
   alias TestFlowPhx.Infrastructure.Storage.Serializer
 
   describe "request round-trip" do

@@ -32,7 +32,7 @@ defmodule TestFlowPhx.Smoke.Storage do
   borra las entradas creadas para dejar el archivo limpio.
   """
 
-  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}
+  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Rest.Request}
   alias TestFlowPhx.Infrastructure.Storage.{JsonFileRepo, Paths}
   alias TestFlowPhx.UseCases.{Collections, History, Tabs}
 

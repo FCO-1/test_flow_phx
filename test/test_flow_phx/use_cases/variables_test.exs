@@ -1,7 +1,7 @@
 defmodule TestFlowPhx.UseCases.VariablesTest do
   use ExUnit.Case, async: true
 
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.Domain.Rest.Request
   alias TestFlowPhx.UseCases.Variables
 
   describe "merge/2" do

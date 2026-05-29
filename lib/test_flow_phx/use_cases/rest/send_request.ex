@@ -1,4 +1,4 @@
-defmodule TestFlowPhx.UseCases.SendRequest do
+defmodule TestFlowPhx.UseCases.Rest.SendRequest do
   @moduledoc """
   Use case de aplicación: envía un Request vía el puerto HttpExecutor
   configurado y (opcionalmente) appendea un HistoryEntry resumido vía el
@@ -9,7 +9,7 @@ defmodule TestFlowPhx.UseCases.SendRequest do
   específica ni de un backend de storage concreto.
   """
 
-  alias TestFlowPhx.Domain.{HistoryEntry, Request, Response}
+  alias TestFlowPhx.Domain.{HistoryEntry, Rest.Request, Rest.Response}
   alias TestFlowPhx.Infrastructure.Storage.Paths
   alias TestFlowPhx.UseCases.Variables
 

@@ -1,4 +1,4 @@
-defmodule TestFlowPhx.Grpc.Frame do
+defmodule TestFlowPhx.Infrastructure.Grpc.Frame do
   @moduledoc """
   Framing de mensajes gRPC sobre HTTP/2.
 
@@ -20,7 +20,7 @@ defmodule TestFlowPhx.Grpc.Frame do
   TODO(N.4): implementar.
   """
   @spec encode(proto_bytes :: binary()) :: binary()
-  def encode(_proto_bytes), do: raise("TestFlowPhx.Grpc.Frame.encode/1 no implementado (Fase N.4)")
+  def encode(_proto_bytes), do: raise("TestFlowPhx.Infrastructure.Grpc.Frame.encode/1 no implementado (Fase N.4)")
 
   @doc """
   Parsea uno o más frames gRPC concatenados en una lista de payloads protobuf.
@@ -28,5 +28,5 @@ defmodule TestFlowPhx.Grpc.Frame do
   TODO(N.4): implementar.
   """
   @spec decode(bytes :: binary()) :: [binary()]
-  def decode(_bytes), do: raise("TestFlowPhx.Grpc.Frame.decode/1 no implementado (Fase N.4)")
+  def decode(_bytes), do: raise("TestFlowPhx.Infrastructure.Grpc.Frame.decode/1 no implementado (Fase N.4)")
 end

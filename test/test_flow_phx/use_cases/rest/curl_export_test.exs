@@ -1,8 +1,8 @@
-defmodule TestFlowPhx.UseCases.CurlExportTest do
+defmodule TestFlowPhx.UseCases.Rest.CurlExportTest do
   use ExUnit.Case, async: true
 
-  alias TestFlowPhx.Domain.Request
-  alias TestFlowPhx.UseCases.CurlExport
+  alias TestFlowPhx.Domain.Rest.Request
+  alias TestFlowPhx.UseCases.Rest.CurlExport
 
   defp req(attrs), do: Request.new(attrs)
   defp kv(k, v, enabled \\ true), do: %{key: k, value: v, enabled: enabled}

@@ -1,7 +1,7 @@
 defmodule TestFlowPhx.UseCases.CollectionExportImportTest do
   use ExUnit.Case, async: false
 
-  alias TestFlowPhx.Domain.{Collection, Request}
+  alias TestFlowPhx.Domain.{Collection, Rest.Request}
   alias TestFlowPhx.Infrastructure.Storage.JsonFileRepo
   alias TestFlowPhx.UseCases.{CollectionExport, CollectionImport, Collections}
 

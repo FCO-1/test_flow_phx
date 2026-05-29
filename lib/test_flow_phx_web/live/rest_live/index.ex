@@ -22,7 +22,7 @@ defmodule TestFlowPhxWeb.RestLive.Index do
 
   use TestFlowPhxWeb, :live_view
 
-  alias TestFlowPhx.Domain.{Request, Response}
+  alias TestFlowPhx.Domain.{Rest.Request, Rest.Response}
 
   alias TestFlowPhx.Domain.Collection
 
@@ -30,14 +30,14 @@ defmodule TestFlowPhxWeb.RestLive.Index do
     CollectionExport,
     CollectionImport,
     Collections,
-    CurlExport,
     Globals,
     History,
-    SendRequest,
     Settings,
     Translations,
     Variables
   }
+
+  alias TestFlowPhx.UseCases.Rest.{CurlExport, SendRequest}
 
   alias TestFlowPhxWeb.RequestParams
   alias TestFlowPhxWeb.TesterComponents

@@ -4,7 +4,7 @@ defmodule TestFlowPhx.Domain.Collection do
   guardadas. Sin carpetas anidadas todavía.
   """
 
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.Domain.Rest.Request
 
   @type variable :: %{name: String.t(), value: String.t(), enabled: boolean()}
 

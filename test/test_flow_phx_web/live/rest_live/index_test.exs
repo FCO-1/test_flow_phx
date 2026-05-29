@@ -3,7 +3,7 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
 
   import Phoenix.LiveViewTest
 
-  alias TestFlowPhx.Domain.{Request, Response}
+  alias TestFlowPhx.Domain.{Rest.Request, Rest.Response}
   alias TestFlowPhx.Support.FakeHttpExecutor
 
   setup do
@@ -899,7 +899,7 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
       req =
         Collections.add_request(
           coll.id,
-          %TestFlowPhx.Domain.Request{
+          %TestFlowPhx.Domain.Rest.Request{
             method: "GET",
             url: "https://{{host}}/api",
             collection_id: coll.id

@@ -8,7 +8,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
   use Phoenix.Component
 
-  alias TestFlowPhx.Domain.{Collection, Request, Response}
+  alias TestFlowPhx.Domain.{Collection, Rest.Request, Rest.Response}
   alias TestFlowPhx.UseCases.Translations
 
   @methods ~w(GET POST PUT PATCH DELETE HEAD OPTIONS)

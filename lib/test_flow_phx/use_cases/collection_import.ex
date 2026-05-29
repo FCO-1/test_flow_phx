@@ -6,7 +6,7 @@ defmodule TestFlowPhx.UseCases.CollectionImport do
   IDs frescos tanto a las colecciones como a sus requests.
   """
 
-  alias TestFlowPhx.Domain.{Collection, Request}
+  alias TestFlowPhx.Domain.{Collection, Rest.Request}
   alias TestFlowPhx.Infrastructure.Storage.Serializer
   alias TestFlowPhx.UseCases.Collections
 

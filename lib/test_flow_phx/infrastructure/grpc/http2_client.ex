@@ -1,4 +1,4 @@
-defmodule TestFlowPhx.Grpc.Http2Client do
+defmodule TestFlowPhx.Infrastructure.Grpc.Http2Client do
   @moduledoc """
   Wrapper HTTP/2 sobre `Mint.HTTP2` — un proceso = una conexión.
 
@@ -23,7 +23,7 @@ defmodule TestFlowPhx.Grpc.Http2Client do
   @spec connect(host :: String.t(), port :: :inet.port_number(), opts :: keyword()) ::
           {:ok, term()} | {:error, term()}
   def connect(_host, _port, _opts \\ []),
-    do: raise("TestFlowPhx.Grpc.Http2Client.connect/3 no implementado (Fase N.4)")
+    do: raise("TestFlowPhx.Infrastructure.Grpc.Http2Client.connect/3 no implementado (Fase N.4)")
 
   @doc """
   Emite un request HTTP/2 (method, path, headers, body) sobre la conexión.
@@ -33,7 +33,7 @@ defmodule TestFlowPhx.Grpc.Http2Client do
   @spec request(conn :: term(), method :: String.t(), path :: String.t(), headers :: list(), body :: binary()) ::
           {:ok, term()} | {:error, term()}
   def request(_conn, _method, _path, _headers, _body),
-    do: raise("TestFlowPhx.Grpc.Http2Client.request/5 no implementado (Fase N.4)")
+    do: raise("TestFlowPhx.Infrastructure.Grpc.Http2Client.request/5 no implementado (Fase N.4)")
 
   @doc """
   Acumula respuestas del stream hasta `:done` o trailers.
@@ -42,5 +42,5 @@ defmodule TestFlowPhx.Grpc.Http2Client do
   """
   @spec recv(conn :: term(), timeout :: timeout()) :: {:ok, term()} | {:error, term()}
   def recv(_conn, _timeout),
-    do: raise("TestFlowPhx.Grpc.Http2Client.recv/2 no implementado (Fase N.4)")
+    do: raise("TestFlowPhx.Infrastructure.Grpc.Http2Client.recv/2 no implementado (Fase N.4)")
 end

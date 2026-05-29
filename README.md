@@ -25,17 +25,37 @@ Fuera de Fase 1 (futuro): GraphQL/WebSocket/gRPC, multi-usuario, variables `{{ba
 
 ## Arquitectura (DDD por capas)
 
+Cada capa se subdivide **por protocolo** (`rest/`, `grpc/`) para mantener el
+orden a medida que se agregan protocolos. Lo transversal (Collection, History,
+Globals, Variables, Storage, ports) vive en la raíz de su capa.
+
 ```
 lib/test_flow_phx/
-  domain/           # entidades + ports (behaviours) — sin I/O
-  use_cases/        # application services (SendRequest, Collections, Tabs, History)
-  infrastructure/   # adapters concretos (Http.ReqExecutor, Storage.JsonFileRepo, Storage.Paths)
-  smoke/            # smokes manuales con [PASS]/[FAIL] estilo iex
+  domain/
+    rest/           # Request, Response
+    grpc/           # GrpcRequest, GrpcResponse (Fase N)
+    ports/          # behaviours: HttpExecutor, RequestRepo, GrpcExecutor
+    collection.ex   history_entry.ex          # transversales
+  use_cases/
+    rest/           # SendRequest, CurlExport
+    grpc/           # SendGrpcRequest, ProtoLoader (Fase N)
+    collections.ex  globals.ex  variables.ex  tabs.ex  …   # transversales
+  infrastructure/
+    rest/           # ReqExecutor (adapter HttpExecutor sobre Req)
+    grpc/           # WireCodec, Frame, Http2Client, Client (cliente propio) + adapter
+    storage/        # JsonFileRepo, Serializer, Paths                # transversal
+  smoke/
+    rest/           # smokes manuales REST con [PASS]/[FAIL] estilo iex
+    storage.ex  tabs.ex  web_shell.ex                       # transversales
 lib/test_flow_phx_web/
-  live/             # TesterLive (LiveView raíz montada en /)
-  components/       # TesterComponents (function components stateless)
-  request_params.ex # form params → %Request{} (web boundary)
+  live/             # LiveViews (RestLive montada en /)
+  components/       # function components stateless
+  request_params.ex # form params → %Domain.Rest.Request{} (web boundary)
 ```
+
+El motor gRPC bajo `infrastructure/grpc/` se diseña **sin acoplarse** a TestFlow
+(cero refs a domain/otra infra; I/O genérico), para poder extraerlo a una lib
+propia si crece.
 
 El dominio nunca importa infraestructura. Los use cases resuelven el adapter en runtime con `Application.fetch_env!(:test_flow_phx, :http_executor | :request_repo)`, lo que permite swap-ear en tests por un fake (ver `test/support/fake_http_executor.ex`).
 

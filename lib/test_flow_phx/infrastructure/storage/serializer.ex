@@ -9,7 +9,7 @@ defmodule TestFlowPhx.Infrastructure.Storage.Serializer do
   `String.to_atom/1` sobre input no confiable.
   """
 
-  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}
+  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Rest.Request}
 
   # Maps string→atom. Usamos maps (en vez de whitelists + String.to_existing_atom/1)
   # porque Serializer puede arrancar antes que los módulos que originan estos

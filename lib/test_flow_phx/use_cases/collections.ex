@@ -6,7 +6,7 @@ defmodule TestFlowPhx.UseCases.Collections do
   adapter concreto en runtime vía `Application.fetch_env!/2`.
   """
 
-  alias TestFlowPhx.Domain.{Collection, Request}
+  alias TestFlowPhx.Domain.{Collection, Rest.Request}
 
   @spec list() :: [Collection.t()]
   def list, do: repo().list_collections()

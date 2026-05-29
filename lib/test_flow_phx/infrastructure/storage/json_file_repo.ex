@@ -28,7 +28,7 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
 
   @behaviour TestFlowPhx.Domain.Ports.RequestRepo
 
-  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}
+  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Rest.Request}
   alias TestFlowPhx.Infrastructure.Storage.{Paths, Serializer}
 
   @default_topic "storage"

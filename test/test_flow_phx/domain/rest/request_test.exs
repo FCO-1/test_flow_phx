@@ -1,7 +1,7 @@
-defmodule TestFlowPhx.Domain.RequestTest do
+defmodule TestFlowPhx.Domain.Rest.RequestTest do
   use ExUnit.Case, async: true
 
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.Domain.Rest.Request
 
   describe "new/1" do
     test "builds a default GET request with sane defaults" do

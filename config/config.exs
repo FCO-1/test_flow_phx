@@ -13,7 +13,7 @@ config :test_flow_phx,
 # DDD port wiring: bind domain port behaviours to their infrastructure adapters.
 # Use cases resolve these at runtime so the domain stays library-agnostic.
 config :test_flow_phx,
-  http_executor: TestFlowPhx.Infrastructure.Http.ReqExecutor,
+  http_executor: TestFlowPhx.Infrastructure.Rest.ReqExecutor,
   request_repo: TestFlowPhx.Infrastructure.Storage.JsonFileRepo
 
 # Configures the endpoint

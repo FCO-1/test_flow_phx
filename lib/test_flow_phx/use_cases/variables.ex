@@ -21,7 +21,7 @@ defmodule TestFlowPhx.UseCases.Variables do
   que sustituir por string vacío y enviar algo mal-formado en silencio.
   """
 
-  alias TestFlowPhx.Domain.{Collection, Request}
+  alias TestFlowPhx.Domain.{Collection, Rest.Request}
 
   @placeholder ~r/\{\{([A-Za-z0-9_]+)\}\}/
 

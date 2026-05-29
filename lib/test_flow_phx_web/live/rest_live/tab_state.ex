@@ -10,7 +10,7 @@ defmodule TestFlowPhxWeb.RestLive.TabState do
 
   import Phoenix.Component, only: [assign: 3]
 
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.Domain.Rest.Request
   alias TestFlowPhx.UseCases.Tabs
 
   @doc """

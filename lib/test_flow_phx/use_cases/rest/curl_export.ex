@@ -1,13 +1,13 @@
-defmodule TestFlowPhx.UseCases.CurlExport do
+defmodule TestFlowPhx.UseCases.Rest.CurlExport do
   @moduledoc """
-  Builder puro que convierte un `TestFlowPhx.Domain.Request` en un string
+  Builder puro que convierte un `TestFlowPhx.Domain.Rest.Request` en un string
   de comando `curl` listo para pegar en una shell POSIX.
 
-  Espeja el comportamiento de `TestFlowPhx.Infrastructure.Http.ReqExecutor`
+  Espeja el comportamiento de `TestFlowPhx.Infrastructure.Rest.ReqExecutor`
   para que el comando impreso sea exactamente lo que la app enviaría.
   """
 
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.Domain.Rest.Request
   alias TestFlowPhx.UseCases.Variables
 
   @doc """

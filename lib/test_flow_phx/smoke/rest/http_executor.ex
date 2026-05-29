@@ -1,8 +1,8 @@
-defmodule TestFlowPhx.Smoke.HttpExecutor do
+defmodule TestFlowPhx.Smoke.Rest.HttpExecutor do
   @moduledoc """
   Smoke test manual del flujo HTTP end-to-end.
 
-  Ejercita el caso de uso `TestFlowPhx.UseCases.SendRequest` contra
+  Ejercita el caso de uso `TestFlowPhx.UseCases.Rest.SendRequest` contra
   `https://httpbin.org/*` y verifica que el adapter actual (configurado
   en `config :test_flow_phx, :http_executor`) construye la petición
   correctamente y decodifica la respuesta.
@@ -12,11 +12,11 @@ defmodule TestFlowPhx.Smoke.HttpExecutor do
   Ejecutar desde iex:
 
       iex -S mix
-      TestFlowPhx.Smoke.HttpExecutor.todos()
+      TestFlowPhx.Smoke.Rest.HttpExecutor.todos()
 
   O paso a paso:
 
-      alias TestFlowPhx.Smoke.HttpExecutor, as: H
+      alias TestFlowPhx.Smoke.Rest.HttpExecutor, as: H
       H.reset_checks()
       H.paso_1_get_con_query()
       H.paso_2_post_json()
@@ -28,9 +28,9 @@ defmodule TestFlowPhx.Smoke.HttpExecutor do
       H.resumen_checks()
   """
 
-  alias TestFlowPhx.Domain.{Request, Response}
+  alias TestFlowPhx.Domain.{Rest.Request, Rest.Response}
   alias TestFlowPhx.Infrastructure.Storage.Paths
-  alias TestFlowPhx.UseCases.SendRequest
+  alias TestFlowPhx.UseCases.Rest.SendRequest
 
   @httpbin "https://httpbin.org"
 

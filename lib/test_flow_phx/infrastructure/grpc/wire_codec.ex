@@ -1,4 +1,4 @@
-defmodule TestFlowPhx.Grpc.WireCodec do
+defmodule TestFlowPhx.Infrastructure.Grpc.WireCodec do
   @moduledoc """
   Encoder/decoder de protobuf **wire format**, descriptor-driven.
 
@@ -26,7 +26,7 @@ defmodule TestFlowPhx.Grpc.WireCodec do
   TODO(N.2): implementar.
   """
   @spec encode(descriptor :: term(), value :: map()) :: binary()
-  def encode(_descriptor, _value), do: raise("TestFlowPhx.Grpc.WireCodec.encode/2 no implementado (Fase N.2)")
+  def encode(_descriptor, _value), do: raise("TestFlowPhx.Infrastructure.Grpc.WireCodec.encode/2 no implementado (Fase N.2)")
 
   @doc """
   Parsea `bytes` protobuf a un mapa según el descriptor del mensaje.
@@ -34,5 +34,5 @@ defmodule TestFlowPhx.Grpc.WireCodec do
   TODO(N.2): implementar.
   """
   @spec decode(descriptor :: term(), bytes :: binary()) :: map()
-  def decode(_descriptor, _bytes), do: raise("TestFlowPhx.Grpc.WireCodec.decode/2 no implementado (Fase N.2)")
+  def decode(_descriptor, _bytes), do: raise("TestFlowPhx.Infrastructure.Grpc.WireCodec.decode/2 no implementado (Fase N.2)")
 end

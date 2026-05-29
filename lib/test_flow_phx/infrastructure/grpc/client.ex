@@ -1,4 +1,4 @@
-defmodule TestFlowPhx.Grpc.Client do
+defmodule TestFlowPhx.Infrastructure.Grpc.Client do
   @moduledoc """
   Cliente gRPC de alto nivel: teje `Http2Client` + `Frame` + `WireCodec`.
 
@@ -30,7 +30,7 @@ defmodule TestFlowPhx.Grpc.Client do
           opts :: keyword()
         ) :: {:ok, map()} | {:error, %{code: integer(), message: String.t()}}
   def unary(_channel, _service, _method, _request_descriptor, _response_descriptor, _input_value, _opts \\ []),
-    do: raise("TestFlowPhx.Grpc.Client.unary/7 no implementado (Fase N.5)")
+    do: raise("TestFlowPhx.Infrastructure.Grpc.Client.unary/7 no implementado (Fase N.5)")
 
   @doc """
   Ejecuta una RPC server-streaming, invocando `callback` por cada mensaje.
@@ -57,5 +57,5 @@ defmodule TestFlowPhx.Grpc.Client do
         _callback,
         _opts \\ []
       ),
-      do: raise("TestFlowPhx.Grpc.Client.server_stream/8 no implementado (Fase N.6)")
+      do: raise("TestFlowPhx.Infrastructure.Grpc.Client.server_stream/8 no implementado (Fase N.6)")
 end
