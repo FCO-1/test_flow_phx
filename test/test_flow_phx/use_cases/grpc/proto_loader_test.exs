@@ -94,6 +94,53 @@ defmodule TestFlowPhx.UseCases.Grpc.ProtoLoaderTest do
     end
   end
 
+  describe "load/2 — import_paths (raíz de imports estilo paquete)" do
+    # main.proto vive en deep/ e importa "shared/dep.proto" relativo a la raíz
+    # `dir`, no a su propio directorio. Sin import_paths el include es dirname
+    # (deep/) y protoc no encuentra el import; con import_paths: [dir] sí.
+    setup %{dir: dir} do
+      File.mkdir_p!(Path.join(dir, "deep"))
+      File.mkdir_p!(Path.join(dir, "shared"))
+
+      File.write!(Path.join(dir, "shared/dep.proto"), """
+      syntax = "proto3";
+      package dep;
+      message Dep { string x = 1; }
+      """)
+
+      main = Path.join(dir, "deep/main.proto")
+
+      File.write!(main, """
+      syntax = "proto3";
+      package main;
+      import "shared/dep.proto";
+      message Main { dep.Dep d = 1; }
+      service S { rpc Call(Main) returns (Main); }
+      """)
+
+      %{main: main}
+    end
+
+    test "sin import_paths el import no resuelve", %{main: main} do
+      assert {:error, msg} = ProtoLoader.load([main])
+      assert msg =~ "shared/dep.proto"
+    end
+
+    test "con import_paths: [raíz] resuelve y carga", %{main: main, dir: dir} do
+      assert {:ok, d} = ProtoLoader.load([main], import_paths: [dir])
+      assert [%{name: "main.S"}] = d.services
+      assert Map.has_key?(d.messages_by_name, ".main.Main")
+      assert Map.has_key?(d.messages_by_name, ".dep.Dep")
+    end
+
+    test "el cache distingue import_paths distintos", %{main: main, dir: dir} do
+      assert {:ok, _} = ProtoLoader.load([main], import_paths: [dir])
+      # mismo contenido pero sin import_paths: NO debe pegar el cache anterior
+      # (de lo contrario devolvería el descriptor cacheado en vez de fallar).
+      assert {:error, _} = ProtoLoader.load([main])
+    end
+  end
+
   describe "load/2 — errores" do
     test "archivo inexistente", %{dir: dir} do
       assert {:error, msg} = ProtoLoader.load([Path.join(dir, "nope.proto")])

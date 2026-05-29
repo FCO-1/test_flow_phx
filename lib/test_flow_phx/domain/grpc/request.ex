@@ -4,10 +4,13 @@ defmodule TestFlowPhx.Domain.Grpc.Request do
   enviar. Datos puros + helpers de construcción; sin I/O ni framework.
 
   El `.proto` es el contrato: `proto_paths` apunta a los archivos a cargar,
-  `service`/`method` seleccionan la RPC, `body_text` es el mensaje de entrada
-  como **JSON** (se convierte al mapa de WireCodec en el límite del executor).
-  `metadata` son headers gRPC custom (kv). El tipo de RPC (unary vs server
-  streaming) lo dicta el descriptor del método, no este struct.
+  `import_paths` son directorios raíz extra para resolver `import`s (equivale a
+  `-I` de protoc; necesario para `.proto` con imports estilo paquete, p. ej.
+  `import "donavida/comun/v1/traza.proto"`), `service`/`method` seleccionan la
+  RPC, `body_text` es el mensaje de entrada como **JSON** (se convierte al mapa
+  de WireCodec en el límite del executor). `metadata` son headers gRPC custom
+  (kv). El tipo de RPC (unary vs server streaming) lo dicta el descriptor del
+  método, no este struct.
   """
 
   @type kv_row :: %{key: String.t(), value: String.t(), enabled: boolean()}
@@ -17,6 +20,7 @@ defmodule TestFlowPhx.Domain.Grpc.Request do
           name: String.t(),
           target: String.t(),
           proto_paths: [String.t()],
+          import_paths: [String.t()],
           service: String.t(),
           method: String.t(),
           metadata: [kv_row()],
@@ -28,6 +32,7 @@ defmodule TestFlowPhx.Domain.Grpc.Request do
             name: "Untitled",
             target: "",
             proto_paths: [],
+            import_paths: [],
             service: "",
             method: "",
             metadata: [],

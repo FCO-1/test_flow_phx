@@ -89,9 +89,19 @@ defmodule TestFlowPhx.Infrastructure.Grpc.Client do
 
   defp grpc_message(headers) do
     case List.keyfind(headers, "grpc-message", 0) do
-      {_, msg} -> msg
+      {_, msg} -> percent_decode(msg)
       nil -> ""
     end
+  end
+
+  # `grpc-message` viaja **percent-encoded** por spec gRPC (los servidores
+  # codifican espacios como %20, `|` como %7C, UTF-8 como %XX…). El cliente debe
+  # decodificarlo. `URI.decode/1` maneja sólo `%XX` (no toca `+`), que es justo
+  # la regla de gRPC. Si viniera malformado, se devuelve crudo en vez de fallar.
+  defp percent_decode(msg) when is_binary(msg) do
+    URI.decode(msg)
+  rescue
+    _ -> msg
   end
 
   defp decode_body(body, response_descriptor, registry) do

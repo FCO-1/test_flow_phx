@@ -42,7 +42,7 @@ defmodule TestFlowPhx.Infrastructure.Grpc.GrpcExecutor do
   # ── pipeline de preparación ─────────────────────────────────────────────────
 
   defp load_proto(req) do
-    case ProtoLoader.load(req.proto_paths) do
+    case ProtoLoader.load(req.proto_paths, import_paths: req.import_paths) do
       {:ok, desc} -> {:ok, desc}
       {:error, msg} -> {:error, %{type: :proto_load, message: msg, code: nil}}
     end

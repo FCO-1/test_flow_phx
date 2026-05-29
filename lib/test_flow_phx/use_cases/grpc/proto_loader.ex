@@ -63,8 +63,14 @@ defmodule TestFlowPhx.UseCases.Grpc.ProtoLoader do
         }
 
   @doc """
-  Carga los `.proto` en `paths`. Opts: `cache: false`, `protoc_runner: fun`
-  (inyectable para tests; por defecto corre `protoc` real).
+  Carga los `.proto` en `paths`. Opts:
+
+    * `import_paths` — lista de directorios raíz extra para resolver `import`s
+      (equivale a `-I` de protoc). Necesario cuando un `.proto` importa por
+      ruta de paquete (`import "pkg/sub/x.proto"`) y esa raíz no es el propio
+      directorio del archivo. Default `[]`.
+    * `cache: false` — saltea el cache.
+    * `protoc_runner: fun` — inyectable para tests; por defecto corre `protoc`.
   """
   @spec load([Path.t()], keyword()) :: {:ok, descriptor()} | {:error, String.t()}
   def load(paths, opts \\ []) when is_list(paths) do
@@ -111,8 +117,9 @@ defmodule TestFlowPhx.UseCases.Grpc.ProtoLoader do
 
   defp do_load(paths, opts) do
     use_cache = Keyword.get(opts, :cache, true)
-    runner = Keyword.get(opts, :protoc_runner, &run_protoc/1)
-    key = cache_key(paths)
+    import_paths = Keyword.get(opts, :import_paths, [])
+    runner = Keyword.get(opts, :protoc_runner, &run_protoc(&1, import_paths))
+    key = cache_key(paths, import_paths)
 
     case use_cache && cache_get(key) do
       {:ok, desc} ->
@@ -138,19 +145,20 @@ defmodule TestFlowPhx.UseCases.Grpc.ProtoLoader do
     end
   end
 
-  defp cache_key(paths) do
+  defp cache_key(paths, import_paths) do
     contents = paths |> Enum.sort() |> Enum.map_join("\0", &File.read!/1)
-    :crypto.hash(:sha256, contents) |> Base.encode16()
+    salt = import_paths |> Enum.sort() |> Enum.join("\0")
+    :crypto.hash(:sha256, contents <> "\0\0" <> salt) |> Base.encode16()
   end
 
-  defp run_protoc(paths) do
+  defp run_protoc(paths, import_paths) do
     cond do
       System.find_executable("protoc") == nil ->
         {:error, "protoc no está en el PATH. Instalá Protocol Buffers (ver README)."}
 
       true ->
         tmp = Path.join(System.tmp_dir!(), "tf_grpc_#{:erlang.unique_integer([:positive])}.desc")
-        includes = paths |> Enum.map(&Path.dirname/1) |> Enum.uniq()
+        includes = Enum.uniq(Enum.map(paths, &Path.dirname/1) ++ import_paths)
         args = ["--include_imports", "--descriptor_set_out=#{tmp}"] ++
                  Enum.flat_map(includes, &["-I", &1]) ++ paths
 

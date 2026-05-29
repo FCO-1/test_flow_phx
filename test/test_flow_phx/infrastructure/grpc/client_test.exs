@@ -42,6 +42,32 @@ defmodule TestFlowPhx.Infrastructure.Grpc.ClientTest do
       assert Client.interpret_response(resp, @resp, %{}) == {:error, %{code: 5, message: "not found"}}
     end
 
+    test "grpc-message percent-encoded se decodifica (spec gRPC)" do
+      resp = %{
+        status: 200,
+        headers: [],
+        trailers: [
+          {"grpc-status", "3"},
+          {"grpc-message", "CONTRASENA_INVALIDA:%20no%20cumple%20la%20politica%20%7C%20motivos=sin_simbolo"}
+        ],
+        body: ""
+      }
+
+      assert {:error, %{code: 3, message: msg}} = Client.interpret_response(resp, @resp, %{})
+      assert msg == "CONTRASENA_INVALIDA: no cumple la politica | motivos=sin_simbolo"
+    end
+
+    test "grpc-message malformado (% suelto) se devuelve crudo, sin crashear" do
+      resp = %{
+        status: 200,
+        headers: [],
+        trailers: [{"grpc-status", "2"}, {"grpc-message", "100% roto"}],
+        body: ""
+      }
+
+      assert {:error, %{code: 2, message: "100% roto"}} = Client.interpret_response(resp, @resp, %{})
+    end
+
     test "trailers ganan sobre headers" do
       resp = %{
         status: 200,

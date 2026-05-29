@@ -101,7 +101,7 @@ defmodule TestFlowPhx.Smoke.Grpc.RequestFlow do
     proto = fetch!(opts, :proto)
     IO.puts("\n=== DISCOVER: #{proto} ===")
 
-    case load_proto(proto) do
+    case load_proto(proto, opts[:import_paths] || []) do
       {:ok, desc} ->
         if desc.services == [] do
           IO.puts("   (el .proto no define servicios)")
@@ -240,11 +240,13 @@ defmodule TestFlowPhx.Smoke.Grpc.RequestFlow do
   """
   def todos(opts) do
     reset_checks()
-    discover(proto: fetch!(opts, :proto))
+    ip = opts[:import_paths] || []
+    discover(proto: fetch!(opts, :proto), import_paths: ip)
 
     unary(
       target: fetch!(opts, :target),
       proto: opts[:proto],
+      import_paths: ip,
       service: fetch!(opts, :service),
       method: fetch!(opts, :unary_method),
       body: opts[:unary_body] || "{}",
@@ -255,6 +257,7 @@ defmodule TestFlowPhx.Smoke.Grpc.RequestFlow do
       server_stream(
         target: opts[:target],
         proto: opts[:proto],
+        import_paths: ip,
         service: opts[:service],
         method: opts[:stream_method],
         body: opts[:stream_body] || "{}",
@@ -265,11 +268,13 @@ defmodule TestFlowPhx.Smoke.Grpc.RequestFlow do
     unknown_method(
       target: opts[:target],
       proto: opts[:proto],
+      import_paths: ip,
       service: opts[:service]
     )
 
     bad_target(
       proto: opts[:proto],
+      import_paths: ip,
       service: opts[:service],
       method: opts[:unary_method],
       body: opts[:unary_body] || "{}"
@@ -287,12 +292,13 @@ defmodule TestFlowPhx.Smoke.Grpc.RequestFlow do
         id: Request.new_id(),
         name: "smoke",
         proto_paths: [fetch!(opts, :proto)],
+        import_paths: opts[:import_paths] || [],
         metadata: opts[:metadata] || []
       ] ++ overrides
     )
   end
 
-  defp load_proto(proto), do: ProtoLoader.load([proto])
+  defp load_proto(proto, import_paths), do: ProtoLoader.load([proto], import_paths: import_paths)
 
   defp method_kind(%{server_streaming?: true}), do: "server stream"
   defp method_kind(%{client_streaming?: true}), do: "client stream"
