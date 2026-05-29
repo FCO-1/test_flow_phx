@@ -24,7 +24,8 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
 
   alias TestFlowPhx.Domain.Grpc.{Collection, Request, Response}
   alias TestFlowPhx.Infrastructure.Storage.Paths
-  alias TestFlowPhx.UseCases.{Globals, Variables}
+  alias TestFlowPhx.UseCases.{Globals, Settings, Translations, Variables}
+
   alias TestFlowPhx.UseCases.Grpc.{
     GrpcCollectionExport,
     GrpcCollectionImport,
@@ -32,6 +33,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     ProtoLoader,
     SendGrpcRequest
   }
+
   alias TestFlowPhxWeb.GrpcLive.{Format, Params, Proto, TabState}
   alias TestFlowPhxWeb.TesterComponents
 
@@ -42,6 +44,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     socket =
       socket
       |> assign(:page_title, "TestFlow gRPC")
+      |> assign(:locale, Settings.get_locale())
       |> assign(:tabs, tabs)
       |> assign(:active_tab_id, active_id)
       |> assign(:responses, %{})
@@ -83,7 +86,11 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     socket =
       case paths do
         [] ->
-          assign(socket, :proto_error, "no subiste ningún .proto")
+          assign(
+            socket,
+            :proto_error,
+            Translations.t(socket.assigns.locale, "grpc.no_proto_uploaded")
+          )
 
         paths ->
           load_into_socket(socket, paths)
@@ -178,7 +185,9 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   def handle_event("add_kv_row", %{"field" => "metadata"}, socket) do
     socket =
       socket
-      |> TabState.update_active(fn req -> %{req | metadata: req.metadata ++ [Request.empty_kv()]} end)
+      |> TabState.update_active(fn req ->
+        %{req | metadata: req.metadata ++ [Request.empty_kv()]}
+      end)
       |> TabState.save()
 
     {:noreply, socket}
@@ -242,7 +251,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
         socket =
           socket
           |> refresh_collections()
-          |> put_flash(:info, "Importadas #{count} #{collection_word(count)}.")
+          |> put_flash(:info, imported_flash(socket.assigns.locale, count))
 
         {:noreply, socket}
 
@@ -328,7 +337,9 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
       socket =
         case params do
           %{"request" => form} ->
-            TabState.update_active(socket, fn req -> Params.apply(req, socket.assigns.proto, form) end)
+            TabState.update_active(socket, fn req ->
+              Params.apply(req, socket.assigns.proto, form)
+            end)
 
           _ ->
             socket
@@ -442,7 +453,14 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
           else
             update(socket, :responses, fn m ->
               Map.put(m, tab_id, %Response{
-                error: %{type: :unknown, message: "el envío falló: #{inspect(reason)}", code: nil}
+                error: %{
+                  type: :unknown,
+                  message:
+                    Translations.t(socket.assigns.locale, "grpc.flashes.send_failed",
+                      reason: inspect(reason)
+                    ),
+                  code: nil
+                }
               })
             end)
           end
@@ -499,8 +517,10 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     })
   end
 
-  defp collection_word(1), do: "colección"
-  defp collection_word(_), do: "colecciones"
+  defp imported_flash(locale, 1), do: Translations.t(locale, "grpc.flashes.imported_one")
+
+  defp imported_flash(locale, count),
+    do: Translations.t(locale, "grpc.flashes.imported_many", count: count)
 
   # Ejecuta una mutación del repo tragando `:exit` (repo ausente en test env
   # sin storage). Devuelve el valor de la función, o nil si el repo no está.
@@ -597,7 +617,9 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
         |> assign(:proto, desc)
         |> assign(:proto_error, nil)
         |> assign(:proto_names, Enum.map(paths, &Path.basename/1))
-        |> TabState.update_active(fn req -> %{Proto.preselect(req, desc) | proto_paths: paths} end)
+        |> TabState.update_active(fn req ->
+          %{Proto.preselect(req, desc) | proto_paths: paths}
+        end)
         |> TabState.save()
 
       {:error, msg} ->
@@ -631,6 +653,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   attr :tabs, :list, required: true
   attr :active_id, :string, default: nil
   attr :in_flight_tabs, :any, default: nil
+  attr :locale, :string, required: true
 
   def grpc_tab_bar(assigns) do
     assigns = assign_new(assigns, :in_flight_tabs, fn -> MapSet.new() end)
@@ -643,7 +666,8 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
           "flex items-center rounded-t-md border-x border-t shrink-0",
           if(tab.id == @active_id,
             do: "bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 -mb-px",
-            else: "bg-zinc-50 dark:bg-zinc-800 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-700"
+            else:
+              "bg-zinc-50 dark:bg-zinc-800 border-transparent hover:bg-zinc-100 dark:hover:bg-zinc-700"
           )
         ]}
       >
@@ -654,30 +678,38 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
           class="flex items-center gap-2 px-3 py-1.5 text-sm"
           title={tab.target}
         >
-          <span class="truncate max-w-[12rem]">{grpc_tab_label(tab)}</span>
-          <span :if={tab.method != ""} class="text-zinc-400 font-mono text-xs shrink-0">{tab.method}</span>
-          <span :if={MapSet.member?(@in_flight_tabs, tab.id)} class="text-zinc-400 animate-pulse">●</span>
+          <span class="truncate max-w-[12rem]">{grpc_tab_label(tab, @locale)}</span>
+          <span :if={tab.method != ""} class="text-zinc-400 font-mono text-xs shrink-0">
+            {tab.method}
+          </span>
+          <span :if={MapSet.member?(@in_flight_tabs, tab.id)} class="text-zinc-400 animate-pulse">
+            ●
+          </span>
         </button>
         <button
           type="button"
           phx-click="close_tab"
           phx-value-id={tab.id}
-          aria-label="Close tab"
+          aria-label={Translations.t(@locale, "grpc.aria.close_tab")}
           class="px-2 py-1.5 text-zinc-400 hover:text-red-600 text-sm"
-        >×</button>
+        >
+          ×
+        </button>
       </div>
       <button
         type="button"
         phx-click="new_tab"
-        aria-label="New tab"
+        aria-label={Translations.t(@locale, "grpc.aria.new_tab")}
         class="px-3 py-1.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 text-sm shrink-0"
-      >+</button>
+      >
+        +
+      </button>
     </div>
     """
   end
 
-  defp grpc_tab_label(%{name: name}) when is_binary(name) and name != "", do: name
-  defp grpc_tab_label(_), do: "Untitled"
+  defp grpc_tab_label(%{name: name}, _locale) when is_binary(name) and name != "", do: name
+  defp grpc_tab_label(_, locale), do: Translations.t(locale, "grpc.untitled")
 
   @doc """
   Sidebar de colecciones gRPC: crear, listar (expandible), guardar el request
@@ -687,12 +719,13 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   attr :collections, :list, required: true
   attr :expanded, :any, required: true
   attr :request, Request, required: true
+  attr :locale, :string, required: true
 
   def grpc_collections_sidebar(assigns) do
     ~H"""
     <div class="space-y-3">
       <div class="flex items-center justify-between">
-        <h2 class="text-sm font-semibold">Colecciones</h2>
+        <h2 class="text-sm font-semibold">{Translations.t(@locale, "grpc.collections")}</h2>
         <div class="flex items-center gap-1">
           <button
             :if={@collections != []}
@@ -700,14 +733,14 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
             phx-click="export_all_grpc_collections"
             class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 px-1"
           >
-            Export all
+            {Translations.t(@locale, "grpc.export_all")}
           </button>
           <label
             for="grpc-import-file-input"
-            title="Importar colección gRPC"
+            title={Translations.t(@locale, "grpc.import_title")}
             class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 px-1 cursor-pointer"
           >
-            Import
+            {Translations.t(@locale, "grpc.import")}
           </label>
           <input
             id="grpc-import-file-input"
@@ -724,7 +757,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
           type="text"
           name="name"
           value={@request.name}
-          placeholder="nombre del request"
+          placeholder={Translations.t(@locale, "grpc.request_name_placeholder")}
           autocomplete="off"
           class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs dark:bg-zinc-800"
         />
@@ -734,7 +767,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
             disabled={@collections == []}
             class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs dark:bg-zinc-800 disabled:opacity-50"
           >
-            <option value="">colección…</option>
+            <option value="">{Translations.t(@locale, "grpc.collection_select")}</option>
             <option :for={c <- @collections} value={c.id} selected={c.id == @request.collection_id}>
               {c.name}
             </option>
@@ -744,7 +777,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
             disabled={@collections == []}
             class="px-2 py-1 rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90 disabled:opacity-40"
           >
-            Guardar
+            {Translations.t(@locale, "grpc.save")}
           </button>
         </div>
       </form>
@@ -753,14 +786,14 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
         <input
           type="text"
           name="name"
-          placeholder="+ Nueva colección"
+          placeholder={Translations.t(@locale, "grpc.new_collection_placeholder")}
           autocomplete="off"
           class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs dark:bg-zinc-800"
         />
       </form>
 
       <p :if={@collections == []} class="text-xs text-zinc-400 dark:text-zinc-500 italic px-1">
-        Sin colecciones todavía.
+        {Translations.t(@locale, "grpc.no_collections")}
       </p>
 
       <ul class="space-y-1">
@@ -771,30 +804,38 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
               phx-click="toggle_collection"
               phx-value-id={c.id}
               class="text-zinc-400 w-4 text-xs"
-              aria-label="Toggle collection"
-            >{if MapSet.member?(@expanded, c.id), do: "▼", else: "▶"}</button>
+              aria-label={Translations.t(@locale, "grpc.aria.toggle_collection")}
+            >
+              {if MapSet.member?(@expanded, c.id), do: "▼", else: "▶"}
+            </button>
             <span class="flex-1 truncate" title={c.name}>{c.name}</span>
             <span class="text-xs text-zinc-400">{length(c.requests)}</span>
             <button
               type="button"
               phx-click="export_grpc_collection"
               phx-value-id={c.id}
-              aria-label="Export collection"
-              title="Export"
+              aria-label={Translations.t(@locale, "grpc.aria.export_collection")}
+              title={Translations.t(@locale, "grpc.aria.export_collection")}
               class="text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 px-1 invisible group-hover:visible text-xs"
-            >↓</button>
+            >
+              ↓
+            </button>
             <button
               type="button"
               phx-click="delete_collection"
               phx-value-id={c.id}
-              aria-label="Delete collection"
-              data-confirm={"¿Borrar la colección \"" <> c.name <> "\"?"}
+              aria-label={Translations.t(@locale, "grpc.aria.delete_collection")}
+              data-confirm={Translations.t(@locale, "grpc.delete_collection_confirm", name: c.name)}
               class="text-zinc-300 hover:text-red-600 px-1 invisible group-hover:visible"
-            >×</button>
+            >
+              ×
+            </button>
           </div>
 
           <ul :if={MapSet.member?(@expanded, c.id)} class="pl-6 space-y-0.5 mt-1">
-            <li :if={c.requests == []} class="text-xs text-zinc-400 italic py-1">(vacía)</li>
+            <li :if={c.requests == []} class="text-xs text-zinc-400 italic py-1">
+              {Translations.t(@locale, "grpc.empty_collection")}
+            </li>
             <li :for={r <- c.requests} class="flex items-center gap-1 group">
               <button
                 type="button"
@@ -811,9 +852,11 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
                 phx-click="delete_request_from_collection"
                 phx-value-collection-id={c.id}
                 phx-value-request-id={r.id}
-                aria-label="Delete request"
+                aria-label={Translations.t(@locale, "grpc.aria.delete_request")}
                 class="text-zinc-300 hover:text-red-600 px-1 invisible group-hover:visible text-xs"
-              >×</button>
+              >
+                ×
+              </button>
             </li>
           </ul>
         </li>

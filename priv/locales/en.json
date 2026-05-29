@@ -78,5 +78,58 @@
     "modal_title": "Variables for \"%{name}\"",
     "modal_help": "These variables only apply to requests saved in this collection. They take precedence over globals with the same name.",
     "modal_close": "Close"
+  },
+  "grpc": {
+    "nav_rest": "REST",
+    "nav_grpc": "gRPC",
+    "proto_section": ".proto files",
+    "load_button": "Load",
+    "loaded_prefix": "Loaded:",
+    "no_proto_uploaded": "no .proto uploaded",
+    "send": "Send",
+    "sending": "Sending…",
+    "cancel": "Cancel",
+    "service": "Service",
+    "method": "Method",
+    "load_proto_hint": "— load a .proto —",
+    "metadata": "Metadata",
+    "body": "Body (JSON)",
+    "variables_hint": "Variables (in target, metadata and body):",
+    "response": "Response",
+    "streaming": "streaming…",
+    "no_response": "No response yet.",
+    "messages_before_error": "Messages received before the error:",
+    "cancelled": "cancelled",
+    "messages_count": "%{count} message(s)",
+    "collections": "Collections",
+    "export_all": "Export all",
+    "import": "Import",
+    "import_title": "Import gRPC collection",
+    "request_name_placeholder": "request name",
+    "collection_select": "collection…",
+    "save": "Save",
+    "new_collection_placeholder": "+ New collection",
+    "no_collections": "No collections yet.",
+    "empty_collection": "(empty)",
+    "delete_collection_confirm": "Delete collection \"%{name}\"?",
+    "untitled": "Untitled",
+    "upload_errors": {
+      "too_large": "too large",
+      "too_many_files": "too many files",
+      "not_accepted": "type not allowed"
+    },
+    "flashes": {
+      "imported_one": "Imported 1 collection.",
+      "imported_many": "Imported %{count} collections.",
+      "send_failed": "send failed: %{reason}"
+    },
+    "aria": {
+      "close_tab": "Close tab",
+      "new_tab": "New tab",
+      "toggle_collection": "Toggle collection",
+      "delete_collection": "Delete collection",
+      "export_collection": "Export collection",
+      "delete_request": "Delete request"
+    }
   }
 }

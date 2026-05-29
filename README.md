@@ -65,7 +65,14 @@ El dominio nunca importa infraestructura. Los use cases resuelven el adapter en 
 - **`protoc` en el PATH** (Protocol Buffers compiler) — requerido por la sección
   gRPC para parsear `.proto` a un `FileDescriptorSet`. Mínimo recomendado 3.15+;
   con 3.12 los `.proto` que usen `optional` en proto3 fallarán al compilar.
-  Verificar con `protoc --version`. En Debian/Ubuntu: `apt install protobuf-compiler`.
+  Verificar con `protoc --version`.
+  - Debian/Ubuntu: `apt install protobuf-compiler`.
+  - macOS: `brew install protobuf`.
+  - **Windows**: descargar `protoc-<versión>-win64.zip` de
+    [protobuf/releases](https://github.com/protocolbuffers/protobuf/releases),
+    extraer y agregar la carpeta `bin\` al **PATH** del sistema. Reabrir la
+    terminal y verificar con `protoc --version`. (También sirve
+    `choco install protoc` o `scoop install protobuf`.)
 
 ## Correr en local
 

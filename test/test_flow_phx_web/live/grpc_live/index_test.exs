@@ -33,7 +33,11 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
   end
 
   defp load_echo_proto(view) do
-    proto = file_input(view, "#proto-form", :protos, [%{name: "echo.proto", content: @proto, type: "text/plain"}])
+    proto =
+      file_input(view, "#proto-form", :protos, [
+        %{name: "echo.proto", content: @proto, type: "text/plain"}
+      ])
+
     render_upload(proto, "echo.proto")
     view |> element("#proto-form") |> render_submit()
   end
@@ -51,7 +55,11 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
 
   describe "send → response (vía fake)" do
     test "unary: muestra grpc-status y el body decodificado", %{conn: conn} do
-      FakeGrpcExecutor.stage(%Response{status: 0, body_decoded: %{"reply" => "hola"}, duration_ms: 3})
+      FakeGrpcExecutor.stage(%Response{
+        status: 0,
+        body_decoded: %{"reply" => "hola"},
+        duration_ms: 3
+      })
 
       {:ok, view, _html} = live(conn, "/grpc")
 
@@ -103,7 +111,12 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
   describe "streaming en vivo + cancel" do
     test "muestra 'streaming…' con los mensajes mientras está en vuelo", %{conn: conn} do
       FakeGrpcExecutor.gate(self())
-      FakeGrpcExecutor.stage(%Response{status: 0, streaming?: true, messages: [%{"n" => 1}, %{"n" => 2}]})
+
+      FakeGrpcExecutor.stage(%Response{
+        status: 0,
+        streaming?: true,
+        messages: [%{"n" => 1}, %{"n" => 2}]
+      })
 
       {:ok, view, _html} = live(conn, "/grpc")
       load_echo_proto(view)
@@ -126,7 +139,7 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       view |> form("#grpc-form", request: %{method: "Down"}) |> render_submit()
 
       assert_receive {:fake_grpc_blocking, _task}, 1_000
-      html = view |> element("button", "Cancel") |> render_click()
+      html = view |> element("button[phx-click='cancel']") |> render_click()
       assert html =~ "cancelado"
     end
   end
@@ -136,11 +149,17 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       tmp = Path.join(System.tmp_dir!(), "tf_grpc_vars_#{System.unique_integer([:positive])}")
       File.mkdir_p!(tmp)
       on_exit(fn -> File.rm_rf!(tmp) end)
-      start_supervised!({JsonFileRepo, name: JsonFileRepo, path: Path.join(tmp, "state.json"), flush_after_ms: 10})
+
+      start_supervised!(
+        {JsonFileRepo, name: JsonFileRepo, path: Path.join(tmp, "state.json"), flush_after_ms: 10}
+      )
+
       :ok
     end
 
-    test "resuelve {{var}} (globals) en target y body antes de enviar; muestra el hint", %{conn: conn} do
+    test "resuelve {{var}} (globals) en target y body antes de enviar; muestra el hint", %{
+      conn: conn
+    } do
       Globals.replace([
         %{name: "host", value: "1.2.3.4:9000", enabled: true},
         %{name: "user_id", value: "ada", enabled: true}
@@ -200,7 +219,10 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       |> render_change()
 
       view
-      |> form("form[phx-submit='save_to_collection']", %{collection_id: coll.id, name: "Echo guardado"})
+      |> form("form[phx-submit='save_to_collection']", %{
+        collection_id: coll.id,
+        name: "Echo guardado"
+      })
       |> render_submit()
 
       # el request quedó guardado en la colección
@@ -227,7 +249,11 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
 
       view |> form("form[phx-submit='new_collection']", %{name: "C"}) |> render_submit()
       [coll] = GrpcCollections.list()
-      :ok = GrpcCollections.set_variables(coll.id, [%{name: "host", value: "9.9.9.9:1", enabled: true}])
+
+      :ok =
+        GrpcCollections.set_variables(coll.id, [
+          %{name: "host", value: "9.9.9.9:1", enabled: true}
+        ])
 
       # guardar el request en la colección: a partir de acá pertenece a ella
       view |> form("#grpc-form", request: %{target: "{{host}}"}) |> render_change()
@@ -262,7 +288,7 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       {:ok, view, html} = live(conn, "/grpc")
       assert html =~ "Untitled"
 
-      html = view |> element("button[aria-label='New tab']") |> render_click()
+      html = view |> element("button[phx-click='new_tab']") |> render_click()
       # dos tabs Untitled ahora
       assert html |> String.split("Untitled") |> length() >= 3
     end
@@ -276,7 +302,7 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       [tab1] = GrpcTabs.list()
 
       # nueva tab (tab 2) con otro target
-      view |> element("button[aria-label='New tab']") |> render_click()
+      view |> element("button[phx-click='new_tab']") |> render_click()
       view |> form("#grpc-form", request: %{target: "dos:2222"}) |> render_change()
 
       tabs = GrpcTabs.list()
@@ -309,7 +335,7 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
     test "las tabs persisten entre reloads del navegador", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/grpc")
       view |> form("#grpc-form", request: %{target: "persistido:1"}) |> render_change()
-      view |> element("button[aria-label='New tab']") |> render_click()
+      view |> element("button[phx-click='new_tab']") |> render_click()
       view |> form("#grpc-form", request: %{target: "persistido:2"}) |> render_change()
 
       # nuevo mount = nuevo "reload": restaura las dos tabs
@@ -319,7 +345,11 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
     end
 
     test "el response queda aislado por tab", %{conn: conn} do
-      FakeGrpcExecutor.stage(%Response{status: 0, body_decoded: %{"reply" => "tab-uno"}, duration_ms: 1})
+      FakeGrpcExecutor.stage(%Response{
+        status: 0,
+        body_decoded: %{"reply" => "tab-uno"},
+        duration_ms: 1
+      })
 
       {:ok, view, _html} = live(conn, "/grpc")
       view |> form("#grpc-form", request: %{target: "localhost:50051"}) |> render_change()
@@ -329,7 +359,7 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       assert await(view) =~ "tab-uno"
 
       # nueva tab: sin respuesta todavía
-      html = view |> element("button[aria-label='New tab']") |> render_click()
+      html = view |> element("button[phx-click='new_tab']") |> render_click()
       assert html =~ "Sin respuesta todavía."
 
       # volver a la tab 1 muestra de nuevo su respuesta

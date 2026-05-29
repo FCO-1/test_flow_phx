@@ -4,6 +4,8 @@ defmodule TestFlowPhxWeb.GrpcLive.Format do
   Análogo a `RestLive.Styles`/`Parsers`: lógica chica de view fuera del `index.ex`.
   """
 
+  alias TestFlowPhx.UseCases.Translations
+
   @doc "JSON pretty para mostrar un valor decodificado; tolera no-serializable."
   def pretty(value) do
     case Jason.encode(value, pretty: true) do
@@ -12,9 +14,9 @@ defmodule TestFlowPhxWeb.GrpcLive.Format do
     end
   end
 
-  @doc "Traduce un átomo de error de upload a texto legible."
-  def upload_error(:too_large), do: "demasiado grande"
-  def upload_error(:too_many_files), do: "demasiados archivos"
-  def upload_error(:not_accepted), do: "tipo no permitido"
-  def upload_error(other), do: to_string(other)
+  @doc "Traduce un átomo de error de upload a texto legible (localizado)."
+  def upload_error(locale, err) when err in [:too_large, :too_many_files, :not_accepted],
+    do: Translations.t(locale, "grpc.upload_errors.#{err}")
+
+  def upload_error(_locale, other), do: to_string(other)
 end

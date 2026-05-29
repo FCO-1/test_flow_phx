@@ -78,5 +78,58 @@
     "modal_title": "Variables de \"%{name}\"",
     "modal_help": "Estas variables solo aplican a requests guardados en esta colección. Tienen precedencia sobre las globales con el mismo nombre.",
     "modal_close": "Cerrar"
+  },
+  "grpc": {
+    "nav_rest": "REST",
+    "nav_grpc": "gRPC",
+    "proto_section": "Archivos .proto",
+    "load_button": "Cargar",
+    "loaded_prefix": "Cargado:",
+    "no_proto_uploaded": "no subiste ningún .proto",
+    "send": "Enviar",
+    "sending": "Enviando…",
+    "cancel": "Cancelar",
+    "service": "Servicio",
+    "method": "Método",
+    "load_proto_hint": "— cargá un .proto —",
+    "metadata": "Metadata",
+    "body": "Cuerpo (JSON)",
+    "variables_hint": "Variables (en target, metadata y cuerpo):",
+    "response": "Respuesta",
+    "streaming": "streaming…",
+    "no_response": "Sin respuesta todavía.",
+    "messages_before_error": "Mensajes recibidos antes del error:",
+    "cancelled": "cancelado",
+    "messages_count": "%{count} mensaje(s)",
+    "collections": "Colecciones",
+    "export_all": "Exportar todo",
+    "import": "Importar",
+    "import_title": "Importar colección gRPC",
+    "request_name_placeholder": "nombre del request",
+    "collection_select": "colección…",
+    "save": "Guardar",
+    "new_collection_placeholder": "+ Nueva colección",
+    "no_collections": "Sin colecciones todavía.",
+    "empty_collection": "(vacía)",
+    "delete_collection_confirm": "¿Borrar la colección \"%{name}\"?",
+    "untitled": "Sin título",
+    "upload_errors": {
+      "too_large": "demasiado grande",
+      "too_many_files": "demasiados archivos",
+      "not_accepted": "tipo no permitido"
+    },
+    "flashes": {
+      "imported_one": "Importada 1 colección.",
+      "imported_many": "Importadas %{count} colecciones.",
+      "send_failed": "el envío falló: %{reason}"
+    },
+    "aria": {
+      "close_tab": "Cerrar tab",
+      "new_tab": "Nueva tab",
+      "toggle_collection": "Expandir/colapsar colección",
+      "delete_collection": "Borrar colección",
+      "export_collection": "Exportar colección",
+      "delete_request": "Borrar request"
+    }
   }
 }
