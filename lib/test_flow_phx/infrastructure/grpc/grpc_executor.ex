@@ -135,8 +135,10 @@ defmodule TestFlowPhx.Infrastructure.Grpc.GrpcExecutor do
 
     cb = fn map ->
       decoded = JsonCodec.from_message(out_desc, map, desc.messages_by_name, desc.enums_by_name)
-      if on_message, do: on_message.(decoded)
       Kernel.send(me, {tag, decoded})
+      # Propagar el retorno del callback del caller: si devuelve :halt, Client
+      # cancela el stream (RST). Cualquier otra cosa continúa.
+      if on_message, do: on_message.(decoded), else: :cont
     end
 
     case Client.server_stream(chan, service, method.name, in_desc, out_desc, input, cb, call_opts) do

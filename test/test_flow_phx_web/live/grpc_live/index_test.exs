@@ -7,6 +7,17 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
   alias TestFlowPhx.Support.FakeGrpcExecutor
   alias TestFlowPhx.UseCases.Grpc.ProtoLoader
 
+  @proto """
+  syntax = "proto3";
+  package echo;
+  message Req { string msg = 1; }
+  message Resp { string reply = 1; }
+  service Echoer {
+    rpc Echo(Req) returns (Resp);
+    rpc Down(Req) returns (stream Resp);
+  }
+  """
+
   setup do
     FakeGrpcExecutor.reset()
     ProtoLoader.clear_cache()
@@ -17,6 +28,12 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
   defp await(view) do
     Process.sleep(50)
     render(view)
+  end
+
+  defp load_echo_proto(view) do
+    proto = file_input(view, "#proto-form", :protos, [%{name: "echo.proto", content: @proto, type: "text/plain"}])
+    render_upload(proto, "echo.proto")
+    view |> element("#proto-form") |> render_submit()
   end
 
   describe "mount" do
@@ -81,28 +98,41 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
     end
   end
 
-  describe "carga de .proto" do
-    @proto """
-    syntax = "proto3";
-    package echo;
-    message Req { string msg = 1; }
-    message Resp { string reply = 1; }
-    service Echoer {
-      rpc Echo(Req) returns (Resp);
-      rpc Down(Req) returns (stream Resp);
-    }
-    """
+  describe "streaming en vivo + cancel" do
+    test "muestra 'streaming…' con los mensajes mientras está en vuelo", %{conn: conn} do
+      FakeGrpcExecutor.gate(self())
+      FakeGrpcExecutor.stage(%Response{status: 0, streaming?: true, messages: [%{"n" => 1}, %{"n" => 2}]})
 
+      {:ok, view, _html} = live(conn, "/grpc")
+      load_echo_proto(view)
+      view |> form("#grpc-form", request: %{method: "Down"}) |> render_submit()
+
+      # el fake replicó los mensajes y quedó bloqueado: estado in-flight observable
+      assert_receive {:fake_grpc_blocking, _task}, 1_000
+      html = render(view)
+      assert html =~ "streaming…"
+      assert html =~ "&quot;n&quot;: 1"
+      assert html =~ "&quot;n&quot;: 2"
+    end
+
+    test "Cancel detiene el stream y muestra 'cancelado'", %{conn: conn} do
+      FakeGrpcExecutor.gate(self())
+      FakeGrpcExecutor.stage(%Response{status: 0, streaming?: true, messages: [%{"n" => 1}]})
+
+      {:ok, view, _html} = live(conn, "/grpc")
+      load_echo_proto(view)
+      view |> form("#grpc-form", request: %{method: "Down"}) |> render_submit()
+
+      assert_receive {:fake_grpc_blocking, _task}, 1_000
+      html = view |> element("button", "Cancel") |> render_click()
+      assert html =~ "cancelado"
+    end
+  end
+
+  describe "carga de .proto" do
     test "sube un .proto y puebla los dropdowns de service/method", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/grpc")
-
-      proto =
-        file_input(view, "#proto-form", :protos, [
-          %{name: "echo.proto", content: @proto, type: "text/plain"}
-        ])
-
-      render_upload(proto, "echo.proto")
-      html = view |> element("#proto-form") |> render_submit()
+      html = load_echo_proto(view)
 
       assert html =~ "echo.Echoer"
       assert html =~ "Echo"

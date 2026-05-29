@@ -37,6 +37,10 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
       |> assign(:response, nil)
       |> assign(:in_flight?, false)
       |> assign(:send_ref, nil)
+      |> assign(:send_task, nil)
+      |> assign(:streaming?, false)
+      |> assign(:stream_messages, [])
+      |> assign(:cancelled?, false)
       |> allow_upload(:protos, accept: :any, max_entries: 10, auto_upload: false)
 
     {:ok, socket}
@@ -99,31 +103,87 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
           _ -> socket.assigns.request
         end
 
+      streaming? = Proto.streaming_method?(socket.assigns.proto, request.service, request.method)
+      lv = self()
+
+      # on_message empuja cada mensaje al LV en vivo; el executor igual acumula
+      # todo en Response.messages para el resultado final.
       task =
         Task.Supervisor.async_nolink(TestFlowPhx.TaskSupervisor, fn ->
-          SendGrpcRequest.execute(request)
+          SendGrpcRequest.execute(request, on_message: fn msg -> Kernel.send(lv, {:grpc_msg, msg}) end)
         end)
 
       socket =
         socket
         |> assign(:request, request)
         |> assign(:in_flight?, true)
+        |> assign(:streaming?, streaming?)
+        |> assign(:stream_messages, [])
+        |> assign(:cancelled?, false)
         |> assign(:send_ref, task.ref)
+        |> assign(:send_task, task)
         |> assign(:response, nil)
 
       {:noreply, socket}
     end
   end
 
+  # Cancela un stream en curso matando el Task: la conexión HTTP/2 está linkeada
+  # al proceso del Task (Http2Client.connect/start_link), así que muere con él
+  # (RST_STREAM). El {:DOWN} resultante se ignora vía la bandera cancelled?.
+  def handle_event("cancel", _params, socket) do
+    case socket.assigns.send_task do
+      %Task{pid: pid} ->
+        Task.Supervisor.terminate_child(TestFlowPhx.TaskSupervisor, pid)
+
+        {:noreply,
+         socket
+         |> assign(:cancelled?, true)
+         |> assign(:in_flight?, false)
+         |> assign(:streaming?, false)
+         |> assign(:send_task, nil)}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
   @impl true
-  def handle_info({ref, %_{} = response}, %{assigns: %{send_ref: ref}} = socket) do
+  def handle_info({:grpc_msg, msg}, socket) do
+    {:noreply, update(socket, :stream_messages, &(&1 ++ [msg]))}
+  end
+
+  def handle_info({ref, %Response{} = response}, %{assigns: %{send_ref: ref}} = socket) do
     Process.demonitor(ref, [:flush])
-    {:noreply, socket |> assign(:response, response) |> assign(:in_flight?, false) |> assign(:send_ref, nil)}
+
+    {:noreply,
+     socket
+     |> assign(:response, response)
+     |> assign(:in_flight?, false)
+     |> assign(:streaming?, false)
+     |> assign(:send_ref, nil)
+     |> assign(:send_task, nil)}
   end
 
   def handle_info({:DOWN, ref, :process, _pid, reason}, %{assigns: %{send_ref: ref}} = socket) do
-    response = %Response{error: %{type: :unknown, message: "el envío falló: #{inspect(reason)}", code: nil}}
-    {:noreply, socket |> assign(:response, response) |> assign(:in_flight?, false) |> assign(:send_ref, nil)}
+    socket =
+      socket
+      |> assign(:in_flight?, false)
+      |> assign(:streaming?, false)
+      |> assign(:send_ref, nil)
+      |> assign(:send_task, nil)
+
+    # Si fue cancelación del usuario, no es un error: la lista en vivo queda.
+    socket =
+      if socket.assigns.cancelled? do
+        socket
+      else
+        assign(socket, :response, %Response{
+          error: %{type: :unknown, message: "el envío falló: #{inspect(reason)}", code: nil}
+        })
+      end
+
+    {:noreply, socket}
   end
 
   def handle_info(_other, socket), do: {:noreply, socket}
@@ -146,5 +206,22 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
         |> assign(:proto, nil)
         |> assign(:proto_error, msg)
     end
+  end
+
+  # ---------- Componentes ----------
+
+  @doc "Lista numerada de mensajes (stream), cada uno como JSON pretty."
+  attr :messages, :list, required: true
+
+  def stream_list(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <pre
+        :for={{msg, i} <- Enum.with_index(@messages)}
+        class="text-xs font-mono whitespace-pre-wrap rounded bg-zinc-50 dark:bg-zinc-800 p-2"
+      ><span class="text-zinc-400">{i + 1}</span>
+    {Format.pretty(msg)}</pre>
+    </div>
+    """
   end
 end

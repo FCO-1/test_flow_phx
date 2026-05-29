@@ -18,6 +18,7 @@ defmodule TestFlowPhx.Support.FakeGrpcExecutor do
 
   @stage_key :fake_grpc_stage
   @last_request_key :fake_grpc_last_request
+  @gate_key :fake_grpc_gate
 
   @doc "Stagea la respuesta que devolverá el próximo `send/2`."
   @spec stage(Response.t()) :: :ok
@@ -29,12 +30,21 @@ defmodule TestFlowPhx.Support.FakeGrpcExecutor do
   @doc "Devuelve el request capturado por el último `send/2` (o nil)."
   def last_request, do: Application.get_env(:test_flow_phx, @last_request_key)
 
-  @doc "Limpia la respuesta stageada y el último request capturado."
+  @doc "Limpia la respuesta stageada, el último request y el gate."
   def reset do
     Application.delete_env(:test_flow_phx, @stage_key)
     Application.delete_env(:test_flow_phx, @last_request_key)
+    Application.delete_env(:test_flow_phx, @gate_key)
     :ok
   end
+
+  @doc """
+  Activa el "gate": tras replicar los mensajes, `send/2` avisa a `pid` con
+  `{:fake_grpc_blocking, self()}` y se **bloquea** hasta recibir
+  `:fake_grpc_release` (o 2s de timeout). Permite a los tests observar el estado
+  in-flight (streaming en vivo) y ejercitar el cancel.
+  """
+  def gate(pid \\ self()), do: Application.put_env(:test_flow_phx, @gate_key, pid)
 
   @impl true
   def send(request, opts \\ []) do
@@ -47,6 +57,7 @@ defmodule TestFlowPhx.Support.FakeGrpcExecutor do
       end
 
     replay_messages(response, Keyword.get(opts, :on_message))
+    maybe_block()
     response
   end
 
@@ -54,4 +65,20 @@ defmodule TestFlowPhx.Support.FakeGrpcExecutor do
     do: Enum.each(msgs, cb)
 
   defp replay_messages(_response, _cb), do: :ok
+
+  defp maybe_block do
+    case Application.get_env(:test_flow_phx, @gate_key) do
+      pid when is_pid(pid) ->
+        Kernel.send(pid, {:fake_grpc_blocking, self()})
+
+        receive do
+          :fake_grpc_release -> :ok
+        after
+          2_000 -> :ok
+        end
+
+      _ ->
+        :ok
+    end
+  end
 end

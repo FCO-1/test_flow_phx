@@ -57,11 +57,20 @@
             class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800"
           />
           <button
+            :if={not (@in_flight? and @streaming?)}
             type="submit"
             disabled={@in_flight? or is_nil(@proto)}
             class="px-5 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {if @in_flight?, do: "Enviando…", else: "Send"}
+          </button>
+          <button
+            :if={@in_flight? and @streaming?}
+            type="button"
+            phx-click="cancel"
+            class="px-5 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+          >
+            Cancel
           </button>
         </div>
 
@@ -130,8 +139,23 @@
         <h2 class="text-sm font-semibold mb-3">Response</h2>
 
         <%= cond do %>
+          <% @in_flight? and @streaming? -> %>
+            <div class="space-y-2">
+              <span class="inline-flex items-center gap-2 px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
+                <span class="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
+                streaming… {length(@stream_messages)}
+              </span>
+              <.stream_list messages={@stream_messages} />
+            </div>
           <% @in_flight? -> %>
             <p class="text-sm text-zinc-500">Enviando…</p>
+          <% @cancelled? -> %>
+            <div class="space-y-2">
+              <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                cancelado · {length(@stream_messages)} mensaje(s)
+              </span>
+              <.stream_list messages={@stream_messages} />
+            </div>
           <% is_nil(@response) -> %>
             <p class="text-sm text-zinc-400">Sin respuesta todavía.</p>
           <% @response.error -> %>
@@ -153,13 +177,7 @@
 
               <%= if @response.streaming? do %>
                 <p class="text-xs text-zinc-500">{length(@response.messages)} mensaje(s)</p>
-                <div class="space-y-2">
-                  <pre
-                    :for={{msg, i} <- Enum.with_index(@response.messages)}
-                    class="text-xs font-mono whitespace-pre-wrap rounded bg-zinc-50 dark:bg-zinc-800 p-2"
-                  ><span class="text-zinc-400">#{i + 1}</span>
-{Format.pretty(msg)}</pre>
-                </div>
+                <.stream_list messages={@response.messages} />
               <% else %>
                 <pre class="text-xs font-mono whitespace-pre-wrap rounded bg-zinc-50 dark:bg-zinc-800 p-3">{Format.pretty(@response.body_decoded)}</pre>
               <% end %>
