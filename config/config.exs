@@ -14,6 +14,7 @@ config :test_flow_phx,
 # Use cases resolve these at runtime so the domain stays library-agnostic.
 config :test_flow_phx,
   http_executor: TestFlowPhx.Infrastructure.Rest.ReqExecutor,
+  grpc_executor: TestFlowPhx.Infrastructure.Grpc.GrpcExecutor,
   request_repo: TestFlowPhx.Infrastructure.Storage.JsonFileRepo
 
 # Configures the endpoint
