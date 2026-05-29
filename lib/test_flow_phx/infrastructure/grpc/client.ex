@@ -108,29 +108,109 @@ defmodule TestFlowPhx.Infrastructure.Grpc.Client do
     do: %{code: :unknown, message: "HTTP #{status} sin grpc-status"}
 
   @doc """
-  Ejecuta una RPC server-streaming, invocando `callback` por cada mensaje.
+  Ejecuta una RPC server-streaming, invocando `callback` por cada mensaje
+  decodificado a medida que llega.
 
-  TODO(N.6): implementar.
+  El request se codifica/enmarca igual que en `unary/7`. La respuesta llega como
+  múltiples DATA frames de HTTP/2; un mensaje puede partirse entre frames, así
+  que se mantiene un buffer y se desenmarca con `Frame.decode/1` (que devuelve el
+  resto parcial). Cada payload completo se decodifica con `WireCodec` y se pasa a
+  `callback`.
+
+  `callback` puede devolver `:halt` para cancelar el stream (RST_STREAM); en ese
+  caso devuelve `{:ok, :cancelled}`. Cualquier otro retorno continúa.
+
+  Al cerrarse el stream se lee `grpc-status` (trailers, con fallback a headers):
+  0 → `{:ok, :done}`; != 0 → `{:error, %{code, message}}`. Opts iguales a
+  `unary/7` (`registry`, `metadata`, `timeout`).
   """
   @spec server_stream(
-          channel :: term(),
-          service :: String.t(),
-          method :: String.t(),
-          request_descriptor :: term(),
-          response_descriptor :: term(),
-          input_value :: map(),
-          callback :: (map() -> any()),
-          opts :: keyword()
-        ) :: {:ok, :done} | {:error, %{code: integer(), message: String.t()}}
-  def server_stream(
-        _channel,
-        _service,
-        _method,
-        _request_descriptor,
-        _response_descriptor,
-        _input_value,
-        _callback,
-        _opts \\ []
-      ),
-      do: raise("TestFlowPhx.Infrastructure.Grpc.Client.server_stream/8 no implementado (Fase N.6)")
+          pid(),
+          String.t(),
+          String.t(),
+          Google.Protobuf.DescriptorProto.t(),
+          Google.Protobuf.DescriptorProto.t(),
+          map(),
+          (map() -> any()),
+          keyword()
+        ) :: {:ok, :done | :cancelled} | {:error, error()}
+  def server_stream(channel, service, method, request_descriptor, response_descriptor, input_value, callback, opts \\ []) do
+    registry = Keyword.get(opts, :registry, %{})
+    metadata = Keyword.get(opts, :metadata, [])
+    timeout = Keyword.get(opts, :timeout, 30_000)
+
+    path = "/" <> service <> "/" <> method
+    body = input_value |> then(&WireCodec.encode(request_descriptor, &1, registry)) |> Frame.encode()
+    headers = grpc_headers() ++ metadata
+
+    case Http2Client.stream_request(channel, path, headers, body, timeout: timeout) do
+      {:ok, ref} ->
+        consume_stream(channel, ref, %{
+          buffer: "",
+          status: nil,
+          headers: [],
+          trailers: [],
+          descriptor: response_descriptor,
+          registry: registry,
+          callback: callback,
+          timeout: timeout
+        })
+
+      {:error, reason} ->
+        {:error, %{code: :transport, message: inspect(reason)}}
+    end
+  end
+
+  defp consume_stream(channel, ref, acc) do
+    receive do
+      {:grpc_stream, ^ref, event} -> handle_stream_event(event, channel, ref, acc)
+    after
+      acc.timeout -> {:error, %{code: :transport, message: "timeout"}}
+    end
+  end
+
+  defp handle_stream_event({:status, status}, channel, ref, acc),
+    do: consume_stream(channel, ref, %{acc | status: status})
+
+  defp handle_stream_event({:headers, hs}, channel, ref, acc),
+    do: consume_stream(channel, ref, %{acc | headers: hs})
+
+  defp handle_stream_event({:trailers, hs}, channel, ref, acc),
+    do: consume_stream(channel, ref, %{acc | trailers: hs})
+
+  defp handle_stream_event({:data, data}, channel, ref, acc) do
+    {payloads, rest} = Frame.decode(acc.buffer <> data)
+
+    case deliver(payloads, acc) do
+      :cont ->
+        consume_stream(channel, ref, %{acc | buffer: rest})
+
+      :halt ->
+        Http2Client.cancel(channel, ref)
+        {:ok, :cancelled}
+    end
+  end
+
+  defp handle_stream_event(:done, _channel, _ref, acc), do: finalize_stream(acc)
+
+  defp handle_stream_event({:error, reason}, _channel, _ref, _acc),
+    do: {:error, %{code: :transport, message: inspect(reason)}}
+
+  # Decodifica e invoca el callback por payload; corta en cuanto devuelve :halt.
+  defp deliver([], _acc), do: :cont
+
+  defp deliver([payload | rest], acc) do
+    case acc.callback.(WireCodec.decode(acc.descriptor, payload, acc.registry)) do
+      :halt -> :halt
+      _ -> deliver(rest, acc)
+    end
+  end
+
+  defp finalize_stream(acc) do
+    case grpc_status(acc) do
+      {0, _msg} -> {:ok, :done}
+      {code, msg} -> {:error, %{code: code, message: msg}}
+      :missing -> {:error, missing_status_error(acc)}
+    end
+  end
 end

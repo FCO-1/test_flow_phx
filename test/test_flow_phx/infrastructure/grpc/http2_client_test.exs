@@ -107,4 +107,72 @@ defmodule TestFlowPhx.Infrastructure.Grpc.Http2ClientTest do
       assert {:error, _} = Http2Client.connect("127.0.0.1", 1)
     end
   end
+
+  describe "streaming (Bandit h2c)" do
+    defmodule ChunkPlug do
+      @moduledoc false
+      import Plug.Conn
+
+      def init(o), do: o
+
+      def call(conn, opts) do
+        {:ok, _body, conn} = read_body(conn)
+
+        conn =
+          conn
+          |> put_resp_header("content-type", "application/grpc+proto")
+          |> put_resp_header("grpc-status", Keyword.get(opts, :grpc_status, "0"))
+          |> send_chunked(200)
+
+        Enum.reduce(Keyword.fetch!(opts, :chunks), conn, fn c, conn ->
+          {:ok, conn} = chunk(conn, c)
+          conn
+        end)
+      end
+    end
+
+    defp start_chunk_server(opts) do
+      port = 50_000 + rem(:erlang.unique_integer([:positive]), 5000)
+      start_supervised!({Bandit, plug: {ChunkPlug, opts}, scheme: :http, port: port, ip: {127, 0, 0, 1}})
+      {:ok, chan} = Http2Client.connect("127.0.0.1", port)
+      on_exit(fn -> if Process.alive?(chan), do: Http2Client.close(chan) end)
+      chan
+    end
+
+    # Junta los {:data, _} hasta :done; devuelve {data_concatenada, status, headers}.
+    defp drain(ref, acc) do
+      receive do
+        {:grpc_stream, ^ref, {:status, s}} -> drain(ref, %{acc | status: s})
+        {:grpc_stream, ^ref, {:headers, hs}} -> drain(ref, %{acc | headers: hs})
+        {:grpc_stream, ^ref, {:data, d}} -> drain(ref, %{acc | data: acc.data <> d})
+        {:grpc_stream, ^ref, :done} -> acc
+      after
+        2_000 -> flunk("no llegó :done")
+      end
+    end
+
+    test "reenvía status, headers iniciales, data (posiblemente fragmentada) y done" do
+      chan = start_chunk_server(chunks: ["aa", "bb", "cc"], grpc_status: "0")
+      {:ok, ref} = Http2Client.stream_request(chan, "/svc.S/Stream", [], "go")
+
+      assert_receive {:grpc_stream, ^ref, {:status, 200}}, 2_000
+      acc = drain(ref, %{data: "", status: 200, headers: nil})
+
+      assert {"content-type", "application/grpc+proto"} in acc.headers
+      assert {"grpc-status", "0"} in acc.headers
+      assert acc.data == "aabbcc"
+    end
+
+    test "cancel/2 aborta el stream y devuelve :ok" do
+      chan = start_chunk_server(chunks: ["xx", "yy", "zz"], grpc_status: "0")
+      {:ok, ref} = Http2Client.stream_request(chan, "/svc.S/Stream", [], "go")
+
+      # esperar al menos el primer evento, luego cancelar
+      assert_receive {:grpc_stream, ^ref, _}, 2_000
+      assert Http2Client.cancel(chan, ref) == :ok
+
+      # tras cancelar el ref ya no está registrado; el canal sigue vivo y usable
+      assert Process.alive?(chan)
+    end
+  end
 end

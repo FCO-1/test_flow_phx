@@ -136,4 +136,93 @@ defmodule TestFlowPhx.Infrastructure.Grpc.ClientTest do
                )
     end
   end
+
+  # ── server streaming end-to-end (Bandit h2c) ────────────────────────────────
+
+  defmodule StreamPlug do
+    @moduledoc false
+    # Envía `chunks` (binarios crudos) como DATA frames; el test controla los
+    # límites para ejercitar el reensamblado de frames partidos. grpc-status va
+    # en headers iniciales (Bandit no emite trailers vía Plug).
+    import Plug.Conn
+
+    def init(opts), do: opts
+
+    def call(conn, opts) do
+      {:ok, _body, conn} = read_body(conn)
+
+      conn =
+        conn
+        |> put_resp_header("content-type", "application/grpc+proto")
+        |> put_resp_header("grpc-status", Keyword.get(opts, :grpc_status, "0"))
+        |> put_resp_header("grpc-message", Keyword.get(opts, :grpc_message, ""))
+        |> send_chunked(200)
+
+      Enum.reduce(Keyword.fetch!(opts, :chunks), conn, fn c, conn ->
+        {:ok, conn} = chunk(conn, c)
+        conn
+      end)
+    end
+  end
+
+  defp start_stream_server(opts) do
+    port = 50_000 + rem(:erlang.unique_integer([:positive]), 5000)
+    start_supervised!({Bandit, plug: {StreamPlug, opts}, scheme: :http, port: port, ip: {127, 0, 0, 1}})
+    {:ok, chan} = Http2Client.connect("127.0.0.1", port)
+    on_exit(fn -> if Process.alive?(chan), do: Http2Client.close(chan) end)
+    chan
+  end
+
+  describe "server_stream/8 end-to-end (Bandit h2c)" do
+    test "decodifica N mensajes en orden e invoca callback; cierra con {:ok, :done}" do
+      frames = Enum.map(["uno", "dos", "tres"], &resp_frame/1)
+      chan = start_stream_server(chunks: frames, grpc_status: "0")
+      parent = self()
+      cb = fn m -> send(parent, {:msg, m}) end
+
+      assert {:ok, :done} =
+               Client.server_stream(chan, "g.Greeter", "Stream", @req, @resp, %{"msg" => "x"}, cb)
+
+      assert_received {:msg, %{"reply" => "uno"}}
+      assert_received {:msg, %{"reply" => "dos"}}
+      assert_received {:msg, %{"reply" => "tres"}}
+    end
+
+    test "reensambla mensajes partidos entre DATA frames" do
+      all = ["aaaa", "bbbb"] |> Enum.map(&resp_frame/1) |> IO.iodata_to_binary()
+      # cortar en pedazos arbitrarios que cruzan los límites de frame
+      mid = div(byte_size(all), 2)
+      chunks = [binary_part(all, 0, 3), binary_part(all, 3, mid - 3), binary_part(all, mid, byte_size(all) - mid)]
+
+      chan = start_stream_server(chunks: chunks, grpc_status: "0")
+      parent = self()
+      cb = fn m -> send(parent, {:msg, m}) end
+
+      assert {:ok, :done} =
+               Client.server_stream(chan, "g.Greeter", "Stream", @req, @resp, %{"msg" => "x"}, cb)
+
+      assert_received {:msg, %{"reply" => "aaaa"}}
+      assert_received {:msg, %{"reply" => "bbbb"}}
+    end
+
+    test "grpc-status != 0 → {:error, %{code, message}} (sin mensajes)" do
+      chan = start_stream_server(chunks: [], grpc_status: "9", grpc_message: "boom")
+
+      assert {:error, %{code: 9, message: "boom"}} =
+               Client.server_stream(chan, "g.Greeter", "Stream", @req, @resp, %{"msg" => "x"}, fn _ -> :ok end)
+    end
+
+    test "callback que devuelve :halt cancela el stream → {:ok, :cancelled}" do
+      frames = Enum.map(["uno", "dos", "tres"], &resp_frame/1)
+      chan = start_stream_server(chunks: frames, grpc_status: "0")
+      parent = self()
+      cb = fn m -> send(parent, {:msg, m}); :halt end
+
+      assert {:ok, :cancelled} =
+               Client.server_stream(chan, "g.Greeter", "Stream", @req, @resp, %{"msg" => "x"}, cb)
+
+      assert_received {:msg, %{"reply" => "uno"}}
+      refute_received {:msg, %{"reply" => "dos"}}
+    end
+  end
 end
