@@ -6,8 +6,10 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
 
   Flujo (N.8, básico, unary + streaming-no-vivo):
 
-    1. El usuario sube uno o más `.proto` → se guardan en `Paths.proto_dir/0`
-       y se cargan con `ProtoLoader` (services/methods + registry).
+    1. El usuario sube un `.proto` o un `.zip` (árbol con imports) → se crea un
+       **proto-set** (`GrpcProtoSets`: valida con protoc + autodetecta el import
+       root) y se carga con `ProtoLoader`. También puede elegir un proto-set ya
+       subido del selector.
     2. Elige service + method (dropdowns dependientes), llena target,
        metadata (kv) y body (JSON).
     3. Send → `UseCases.Grpc.SendGrpcRequest.execute/2` en un Task; el response
@@ -23,13 +25,15 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   use TestFlowPhxWeb, :live_view
 
   alias TestFlowPhx.Domain.Grpc.{Collection, Request, Response}
-  alias TestFlowPhx.Infrastructure.Storage.Paths
   alias TestFlowPhx.UseCases.{Globals, Settings, Translations, Variables}
+
+  alias TestFlowPhx.Domain.Grpc.ProtoSet
 
   alias TestFlowPhx.UseCases.Grpc.{
     GrpcCollectionExport,
     GrpcCollectionImport,
     GrpcCollections,
+    GrpcProtoSets,
     ProtoLoader,
     SendGrpcRequest
   }
@@ -60,9 +64,10 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
       |> assign(:proto, nil)
       |> assign(:proto_error, nil)
       |> assign(:proto_names, [])
+      |> assign(:proto_sets, list_proto_sets())
       |> TabState.put_active_view()
       |> load_active_proto()
-      |> allow_upload(:protos, accept: :any, max_entries: 10, auto_upload: false)
+      |> allow_upload(:protos, accept: :any, max_entries: 1, auto_upload: false)
 
     {:ok, socket}
   end
@@ -72,29 +77,58 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   @impl true
   def handle_event("validate_upload", _params, socket), do: {:noreply, socket}
 
+  # Sube un `.proto` (autocontenido) o un `.zip` (árbol con imports) y lo
+  # convierte en un proto-set (`GrpcProtoSets`): valida con protoc y autodetecta
+  # el import root. El set queda activo en la tab.
   def handle_event("load_protos", _params, socket) do
-    dir = Paths.proto_dir()
-    File.mkdir_p!(dir)
-
-    paths =
+    results =
       consume_uploaded_entries(socket, :protos, fn %{path: tmp}, entry ->
-        dest = Path.join(dir, entry.client_name)
-        File.cp!(tmp, dest)
-        {:ok, dest}
+        {:ok, create_set_from_upload(tmp, entry.client_name)}
       end)
 
     socket =
-      case paths do
-        [] ->
-          assign(
-            socket,
-            :proto_error,
-            Translations.t(socket.assigns.locale, "grpc.no_proto_uploaded")
-          )
+      case results do
+        [{:ok, %ProtoSet{} = set} | _] ->
+          activate_set(socket, set)
 
-        paths ->
-          load_into_socket(socket, paths)
+        [{:error, msg} | _] ->
+          assign(socket, proto: nil, proto_error: msg, proto_names: [])
+
+        [] ->
+          assign(socket, :proto_error, Translations.t(socket.assigns.locale, "grpc.no_proto_uploaded"))
       end
+
+    {:noreply, socket}
+  end
+
+  # ---------- Selección de proto-set / archivo entry ----------
+
+  def handle_event("select_proto_set", %{"proto_set_id" => ""}, socket) do
+    socket =
+      socket
+      |> TabState.update_active(fn req -> %{req | proto_set_id: nil, entry_file: nil} end)
+      |> TabState.put_active_view()
+      |> reload_proto_assigns()
+      |> TabState.save()
+
+    {:noreply, socket}
+  end
+
+  def handle_event("select_proto_set", %{"proto_set_id" => id}, socket) do
+    case GrpcProtoSets.get(id) do
+      %ProtoSet{} = set -> {:noreply, activate_set(socket, set)}
+      nil -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("select_entry_file", %{"entry_file" => entry}, socket) do
+    socket =
+      socket
+      |> TabState.update_active(fn req -> %{req | entry_file: entry} end)
+      |> TabState.put_active_view()
+      |> reload_proto_assigns()
+      |> preselect_active()
+      |> TabState.save()
 
     {:noreply, socket}
   end
@@ -582,51 +616,97 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     end
   end
 
-  # Recarga el descriptor para la tab activa desde sus `proto_paths`, sin
-  # preselect (preserva el service/method guardado). Si no hay paths o ya no
-  # están en disco, limpia el proto (cada tab muestra solo lo suyo).
-  defp load_active_proto(socket) do
-    paths = socket.assigns.request.proto_paths
+  defp list_proto_sets do
+    GrpcProtoSets.list()
+  catch
+    :exit, _ -> []
+  end
 
-    with [_ | _] <- paths,
-         {:ok, desc} <- ProtoLoader.load(paths) do
-      socket
-      |> assign(:proto, desc)
-      |> assign(:proto_error, nil)
-      |> assign(:proto_names, Enum.map(paths, &Path.basename/1))
+  defp create_set_from_upload(tmp, client_name) do
+    content = File.read!(tmp)
+
+    if String.ends_with?(String.downcase(client_name), ".zip") do
+      GrpcProtoSets.create_from_zip(content, name: Path.rootname(Path.basename(client_name)))
     else
-      _ ->
-        socket
-        |> assign(:proto, nil)
-        |> assign(:proto_error, nil)
-        |> assign(:proto_names, [])
+      GrpcProtoSets.create_from_file(content, client_name)
     end
   end
+
+  # Activa un proto-set en la tab: fija proto_set_id + entry_file (primer entry),
+  # limpia rutas legacy, recarga el descriptor y preselecciona service/method.
+  defp activate_set(socket, %ProtoSet{} = set) do
+    entry = List.first(set.entry_files) || List.first(set.files)
+
+    socket
+    |> TabState.update_active(fn req ->
+      %{req | proto_set_id: set.id, entry_file: entry, proto_paths: [], import_paths: []}
+    end)
+    |> TabState.put_active_view()
+    |> assign(:proto_sets, list_proto_sets())
+    |> reload_proto_assigns()
+    |> preselect_active()
+    |> TabState.save()
+  end
+
+  # Preselecciona el primer service/method del descriptor cargado (solo en
+  # selección/upload fresco; el cambio de tab/abrir NO preselect).
+  defp preselect_active(socket) do
+    case socket.assigns.proto do
+      nil ->
+        socket
+
+      desc ->
+        socket
+        |> TabState.update_active(fn req -> Proto.preselect(req, desc) end)
+        |> TabState.put_active_view()
+    end
+  end
+
+  # Recarga el descriptor para la tab activa, sin preselect (preserva
+  # service/method guardado). En cambio de tab no gritamos si el proto falta.
+  defp load_active_proto(socket) do
+    socket = reload_proto_assigns(socket)
+    if is_nil(socket.assigns.proto), do: assign(socket, :proto_error, nil), else: socket
+  end
+
+  # Resuelve las rutas del request (proto-set o legacy) y carga el descriptor en
+  # los assigns. Surfacea el error de protoc si lo hay.
+  defp reload_proto_assigns(socket) do
+    req = socket.assigns.request
+
+    case resolve_for_load(req) do
+      {:ok, paths, import_paths} ->
+        case ProtoLoader.load(paths, import_paths: import_paths) do
+          {:ok, desc} ->
+            socket
+            |> assign(:proto, desc)
+            |> assign(:proto_error, nil)
+            |> assign(:proto_names, Enum.map(paths, &Path.basename/1))
+
+          {:error, msg} ->
+            socket |> assign(:proto, nil) |> assign(:proto_error, msg) |> assign(:proto_names, [])
+        end
+
+      :none ->
+        socket |> assign(:proto, nil) |> assign(:proto_error, nil) |> assign(:proto_names, [])
+    end
+  end
+
+  # Preferencia: proto-set (portable) → rutas resueltas; si no, rutas legacy.
+  defp resolve_for_load(%Request{proto_set_id: id, entry_file: entry})
+       when is_binary(id) and is_binary(entry) and entry != "" do
+    {proto_paths, import_paths} = GrpcProtoSets.resolve_paths(id, entry)
+    {:ok, proto_paths, import_paths}
+  end
+
+  defp resolve_for_load(%Request{proto_paths: [_ | _] = paths, import_paths: import_paths}),
+    do: {:ok, paths, import_paths}
+
+  defp resolve_for_load(_), do: :none
 
   @doc "Nombres de las variables globales habilitadas (para el hint del template)."
   def enabled_var_names(globals) do
     for %{name: name, enabled: true} <- globals, name != "", do: name
-  end
-
-  # ---------- Helpers de carga ----------
-
-  defp load_into_socket(socket, paths) do
-    case ProtoLoader.load(paths) do
-      {:ok, desc} ->
-        socket
-        |> assign(:proto, desc)
-        |> assign(:proto_error, nil)
-        |> assign(:proto_names, Enum.map(paths, &Path.basename/1))
-        |> TabState.update_active(fn req ->
-          %{Proto.preselect(req, desc) | proto_paths: paths}
-        end)
-        |> TabState.save()
-
-      {:error, msg} ->
-        socket
-        |> assign(:proto, nil)
-        |> assign(:proto_error, msg)
-    end
   end
 
   # ---------- Componentes ----------

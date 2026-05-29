@@ -18,14 +18,29 @@ defmodule TestFlowPhx.UseCases.Grpc.SendGrpcRequest do
   """
 
   alias TestFlowPhx.Domain.Grpc.{Request, Response}
+  alias TestFlowPhx.UseCases.Grpc.GrpcProtoSets
   alias TestFlowPhx.UseCases.Variables
 
   @spec execute(Request.t(), keyword()) :: Response.t()
   def execute(%Request{} = req, opts \\ []) do
     vars = Keyword.get(opts, :vars, %{})
-    resolved = if map_size(vars) == 0, do: req, else: resolve_vars(req, vars)
-    grpc_executor().send(resolved, opts)
+
+    req
+    |> resolve_proto_set()
+    |> then(&if(map_size(vars) == 0, do: &1, else: resolve_vars(&1, vars)))
+    |> grpc_executor().send(opts)
   end
+
+  # Si el request apunta a un proto-set (forma portable), resolvemos sus rutas
+  # concretas (`proto_paths`/`import_paths`) para que el executor las use. Si ya
+  # trae rutas directas (legacy) o no hay set, se deja tal cual.
+  defp resolve_proto_set(%Request{proto_set_id: id, entry_file: entry} = req)
+       when is_binary(id) and is_binary(entry) and entry != "" do
+    {proto_paths, import_paths} = GrpcProtoSets.resolve_paths(id, entry)
+    %{req | proto_paths: proto_paths, import_paths: import_paths}
+  end
+
+  defp resolve_proto_set(%Request{} = req), do: req
 
   defp resolve_vars(%Request{} = req, vars) do
     %{

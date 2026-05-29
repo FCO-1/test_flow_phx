@@ -54,7 +54,51 @@
             >
               {Translations.t(@locale, "grpc.load_button")}
             </button>
+            <span class="text-xs text-zinc-400 dark:text-zinc-500">
+              {Translations.t(@locale, "grpc.proto_upload_hint")}
+            </span>
           </form>
+
+          <%!-- Selector de proto-set ya subido + archivo entry (si hay >1) --%>
+          <div :if={@proto_sets != []} class="flex items-end gap-2 mt-2 flex-wrap">
+            <form phx-change="select_proto_set">
+              <label class="text-xs text-zinc-500 flex flex-col gap-1">
+                {Translations.t(@locale, "grpc.proto_set")}
+                <select
+                  name="proto_set_id"
+                  class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800"
+                >
+                  <option value="">{Translations.t(@locale, "grpc.proto_set_none")}</option>
+                  <option
+                    :for={s <- @proto_sets}
+                    value={s.id}
+                    selected={s.id == @request.proto_set_id}
+                  >
+                    {s.name}
+                  </option>
+                </select>
+              </label>
+            </form>
+
+            <% active_set = Enum.find(@proto_sets, &(&1.id == @request.proto_set_id)) %>
+            <form :if={active_set && length(active_set.entry_files) > 1} phx-change="select_entry_file">
+              <label class="text-xs text-zinc-500 flex flex-col gap-1">
+                {Translations.t(@locale, "grpc.entry_file")}
+                <select
+                  name="entry_file"
+                  class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 font-mono"
+                >
+                  <option
+                    :for={f <- active_set.entry_files}
+                    value={f}
+                    selected={f == @request.entry_file}
+                  >
+                    {f}
+                  </option>
+                </select>
+              </label>
+            </form>
+          </div>
 
           <div :for={entry <- @uploads.protos.entries} class="text-xs text-zinc-500 mt-1">
             {entry.client_name}

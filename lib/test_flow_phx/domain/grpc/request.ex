@@ -3,14 +3,20 @@ defmodule TestFlowPhx.Domain.Grpc.Request do
   Entidad de dominio: borrador de un request gRPC que el usuario edita o por
   enviar. Datos puros + helpers de construcción; sin I/O ni framework.
 
-  El `.proto` es el contrato: `proto_paths` apunta a los archivos a cargar,
-  `import_paths` son directorios raíz extra para resolver `import`s (equivale a
-  `-I` de protoc; necesario para `.proto` con imports estilo paquete, p. ej.
-  `import "donavida/comun/v1/traza.proto"`), `service`/`method` seleccionan la
-  RPC, `body_text` es el mensaje de entrada como **JSON** (se convierte al mapa
-  de WireCodec en el límite del executor). `metadata` son headers gRPC custom
-  (kv). El tipo de RPC (unary vs server streaming) lo dicta el descriptor del
-  método, no este struct.
+  El `.proto` es el contrato. Hay dos formas de apuntarlo:
+
+    * **Por proto-set** (preferido, portable): `proto_set_id` + `entry_file`
+      (ruta relativa al import_root del set). El use case resuelve esto a
+      `proto_paths`/`import_paths` al enviar/cargar (ver `GrpcProtoSets`). Es lo
+      que sobrevive al export (por nombre del set).
+    * **Por rutas directas** (legacy/simple): `proto_paths` (archivos) +
+      `import_paths` (raíces extra para resolver `import`s, equivale a `-I` de
+      protoc).
+
+  `service`/`method` seleccionan la RPC, `body_text` es el mensaje de entrada
+  como **JSON** (se convierte al mapa de WireCodec en el límite del executor).
+  `metadata` son headers gRPC custom (kv). El tipo de RPC (unary vs server
+  streaming) lo dicta el descriptor del método, no este struct.
   """
 
   @type kv_row :: %{key: String.t(), value: String.t(), enabled: boolean()}
@@ -19,6 +25,8 @@ defmodule TestFlowPhx.Domain.Grpc.Request do
           id: String.t() | nil,
           name: String.t(),
           target: String.t(),
+          proto_set_id: String.t() | nil,
+          entry_file: String.t() | nil,
           proto_paths: [String.t()],
           import_paths: [String.t()],
           service: String.t(),
@@ -31,6 +39,8 @@ defmodule TestFlowPhx.Domain.Grpc.Request do
   defstruct id: nil,
             name: "Untitled",
             target: "",
+            proto_set_id: nil,
+            entry_file: nil,
             proto_paths: [],
             import_paths: [],
             service: "",

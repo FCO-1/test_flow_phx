@@ -4,7 +4,7 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
   import Phoenix.LiveViewTest
 
   alias TestFlowPhx.Domain.Grpc.Response
-  alias TestFlowPhx.Infrastructure.Storage.{GrpcJsonFileRepo, JsonFileRepo}
+  alias TestFlowPhx.Infrastructure.Storage.{GrpcJsonFileRepo, JsonFileRepo, Paths}
   alias TestFlowPhx.Support.FakeGrpcExecutor
   alias TestFlowPhx.UseCases.Globals
   alias TestFlowPhx.UseCases.Grpc.{GrpcCollections, GrpcTabs, ProtoLoader}
@@ -23,7 +23,12 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
   setup do
     FakeGrpcExecutor.reset()
     ProtoLoader.clear_cache()
-    on_exit(&FakeGrpcExecutor.reset/0)
+    File.rm_rf(Paths.proto_sets_dir())
+    on_exit(fn ->
+      FakeGrpcExecutor.reset()
+      File.rm_rf(Paths.proto_sets_dir())
+    end)
+
     :ok
   end
 
@@ -50,6 +55,49 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       assert html =~ "REST"
       assert html =~ "cargá un .proto"
       assert html =~ "Sin respuesta todavía."
+    end
+  end
+
+  describe "proto-sets (upload .zip con imports)" do
+    @dep """
+    syntax = "proto3";
+    package donavida.comun.v1;
+    message C { string x = 1; }
+    """
+
+    @auth """
+    syntax = "proto3";
+    package donavida.auth.v1;
+    import "donavida/comun/v1/c.proto";
+    message Req { donavida.comun.v1.C c = 1; }
+    message Resp { string ok = 1; }
+    service Svc { rpc Call(Req) returns (Resp); }
+    """
+
+    defp zip(files) do
+      entries = Enum.map(files, fn {n, c} -> {String.to_charlist(n), c} end)
+      {:ok, {_n, bin}} = :zip.create(~c"set.zip", entries, [:memory])
+      bin
+    end
+
+    test "subir un .zip con imports crea el proto-set y puebla service/method", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      bin =
+        zip([
+          {"donavida/auth/v1/auth.proto", @auth},
+          {"donavida/comun/v1/c.proto", @dep}
+        ])
+
+      up = file_input(view, "#proto-form", :protos, [%{name: "donavida.zip", content: bin}])
+      render_upload(up, "donavida.zip")
+      html = view |> element("#proto-form") |> render_submit()
+
+      # el service del .proto con imports quedó disponible y preseleccionado
+      assert html =~ "donavida.auth.v1.Svc"
+      assert html =~ "Call"
+      # y el proto-set aparece en el selector
+      assert html =~ "donavida"
     end
   end
 
