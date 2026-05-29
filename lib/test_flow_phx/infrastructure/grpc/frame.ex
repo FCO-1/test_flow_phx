@@ -7,8 +7,6 @@ defmodule TestFlowPhx.Infrastructure.Grpc.Frame do
 
       <<compressed::8, byte_size(proto)::32, proto::binary>>
 
-  Skeleton de Fase N.1 — implementación en Fase N.4.
-
   ## Regla de acoplamiento
 
   Parte del cliente gRPC propio. Cero referencias al domain/infra de TestFlow.
@@ -16,17 +14,29 @@ defmodule TestFlowPhx.Infrastructure.Grpc.Frame do
 
   @doc """
   Envuelve bytes protobuf en un frame gRPC sin compresión.
-
-  TODO(N.4): implementar.
   """
-  @spec encode(proto_bytes :: binary()) :: binary()
-  def encode(_proto_bytes), do: raise("TestFlowPhx.Infrastructure.Grpc.Frame.encode/1 no implementado (Fase N.4)")
+  @spec encode(binary()) :: binary()
+  def encode(proto_bytes) when is_binary(proto_bytes),
+    do: <<0::8, byte_size(proto_bytes)::unsigned-big-32, proto_bytes::binary>>
 
   @doc """
-  Parsea uno o más frames gRPC concatenados en una lista de payloads protobuf.
+  Extrae los frames **completos** de `buffer`, devolviendo
+  `{payloads, resto}` donde `resto` son los bytes de un frame parcial todavía
+  sin completar (relevante en streaming: un mensaje puede partirse entre DATA
+  frames de HTTP/2). Cada payload es el protobuf desenmarcado.
 
-  TODO(N.4): implementar.
+  Frames comprimidos (flag != 0) no están soportados en v1: levanta.
   """
-  @spec decode(bytes :: binary()) :: [binary()]
-  def decode(_bytes), do: raise("TestFlowPhx.Infrastructure.Grpc.Frame.decode/1 no implementado (Fase N.4)")
+  @spec decode(binary()) :: {[binary()], binary()}
+  def decode(buffer) when is_binary(buffer), do: decode(buffer, [])
+
+  defp decode(<<0::8, len::unsigned-big-32, payload::binary-size(len), rest::binary>>, acc),
+    do: decode(rest, [payload | acc])
+
+  defp decode(<<flag::8, _::binary>>, _acc) when flag != 0,
+    do: raise(ArgumentError, "frame gRPC comprimido no soportado (flag=#{flag})")
+
+  # No alcanza para un frame completo (header de 5 bytes o payload incompleto):
+  # se devuelve como resto.
+  defp decode(rest, acc), do: {Enum.reverse(acc), rest}
 end
