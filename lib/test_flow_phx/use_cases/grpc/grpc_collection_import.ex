@@ -7,14 +7,19 @@ defmodule TestFlowPhx.UseCases.Grpc.GrpcCollectionImport do
 
   Espejo de `UseCases.CollectionImport` (REST). Rechaza sobres con otro `format`
   (ej. un export REST `testflow-collection`): los shapes no son intercambiables.
+
+  Soporta v1 (rutas `proto_paths` locales) y v2 (referencia al proto-set por
+  `proto_set` nombre): en v2, si existe un proto-set local con ese nombre se
+  re-enlaza (`proto_set_id`); si no, el request queda sin proto (`proto_set_id`
+  nil) hasta que se suba el set.
   """
 
-  alias TestFlowPhx.Domain.Grpc.{Collection, Request}
+  alias TestFlowPhx.Domain.Grpc.{Collection, ProtoSet, Request}
   alias TestFlowPhx.Infrastructure.Storage.GrpcSerializer
-  alias TestFlowPhx.UseCases.Grpc.GrpcCollections
+  alias TestFlowPhx.UseCases.Grpc.{GrpcCollections, GrpcProtoSets}
 
   @format "testflow-grpc-collection"
-  @max_version 1
+  @max_version 2
 
   @type error ::
           :invalid_json
@@ -95,7 +100,28 @@ defmodule TestFlowPhx.UseCases.Grpc.GrpcCollectionImport do
   end
 
   defp load_request_with_fresh_id(map, collection_id) when is_map(map) do
-    req = GrpcSerializer.load_request(map)
+    req =
+      map
+      |> GrpcSerializer.load_request()
+      |> link_proto_set(Map.get(map, "proto_set"))
+
     %{req | id: Request.new_id(), collection_id: collection_id}
+  end
+
+  # v2: el sobre referencia el proto-set por nombre. Si hay uno local con ese
+  # nombre, lo re-enlazamos; si no, queda sin proto (proto_set_id nil).
+  defp link_proto_set(req, name) when is_binary(name) and name != "" do
+    case proto_set_by_name(name) do
+      %ProtoSet{id: id} -> %{req | proto_set_id: id}
+      nil -> %{req | proto_set_id: nil}
+    end
+  end
+
+  defp link_proto_set(req, _), do: req
+
+  defp proto_set_by_name(name) do
+    GrpcProtoSets.get_by_name(name)
+  catch
+    :exit, _ -> nil
   end
 end

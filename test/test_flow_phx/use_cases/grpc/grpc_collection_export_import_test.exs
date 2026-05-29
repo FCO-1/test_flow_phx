@@ -2,13 +2,31 @@ defmodule TestFlowPhx.UseCases.Grpc.GrpcCollectionExportImportTest do
   use ExUnit.Case, async: false
 
   alias TestFlowPhx.Domain.Grpc.{Collection, Request}
-  alias TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepo
-  alias TestFlowPhx.UseCases.Grpc.{GrpcCollectionExport, GrpcCollectionImport, GrpcCollections}
+  alias TestFlowPhx.Infrastructure.Storage.{GrpcJsonFileRepo, Paths}
+
+  alias TestFlowPhx.UseCases.Grpc.{
+    GrpcCollectionExport,
+    GrpcCollectionImport,
+    GrpcCollections,
+    GrpcProtoSets
+  }
+
+  @solo """
+  syntax = "proto3";
+  package solo;
+  message R { string a = 1; }
+  service S { rpc U(R) returns (R); }
+  """
 
   setup do
     tmp = Path.join(System.tmp_dir!(), "tf_grpc_exim_#{System.unique_integer([:positive])}")
     File.mkdir_p!(tmp)
-    on_exit(fn -> File.rm_rf!(tmp) end)
+    File.rm_rf(Paths.proto_sets_dir())
+
+    on_exit(fn ->
+      File.rm_rf!(tmp)
+      File.rm_rf(Paths.proto_sets_dir())
+    end)
 
     start_supervised!(
       {GrpcJsonFileRepo,
@@ -40,7 +58,7 @@ defmodule TestFlowPhx.UseCases.Grpc.GrpcCollectionExportImportTest do
       env = GrpcCollectionExport.build(c)
 
       assert env["format"] == "testflow-grpc-collection"
-      assert env["version"] == 1
+      assert env["version"] == 2
       assert is_binary(env["exported_at"])
       assert [%{"name" => "Smoke", "requests" => reqs, "variables" => []}] = env["collections"]
       assert length(reqs) == 2
@@ -131,6 +149,82 @@ defmodule TestFlowPhx.UseCases.Grpc.GrpcCollectionExportImportTest do
       assert {:ok, 1} = GrpcCollectionImport.import_all(json)
       assert {:ok, 1} = GrpcCollectionImport.import_all(json)
       assert GrpcCollections.list() |> Enum.count(&(&1.name == "Dup")) == 3
+    end
+  end
+
+  describe "proto-sets (v2): referencia por nombre, sin .proto" do
+    test "export referencia el proto-set por NOMBRE y omite id/rutas locales" do
+      {:ok, set} = GrpcProtoSets.create_from_file(@solo, "solo.proto", name: "myset")
+
+      c = GrpcCollections.create("WithSet")
+
+      GrpcCollections.add_request(
+        c.id,
+        Request.new(
+          name: "r",
+          target: "host:1",
+          proto_set_id: set.id,
+          entry_file: "solo.proto",
+          service: "solo.S",
+          method: "U"
+        )
+      )
+
+      [stored] = GrpcCollections.list() |> Enum.filter(&(&1.id == c.id))
+      env = Jason.decode!(GrpcCollectionExport.to_json(stored))
+      req = env["collections"] |> hd() |> Map.fetch!("requests") |> hd()
+
+      assert req["proto_set"] == "myset"
+      assert req["entry_file"] == "solo.proto"
+      assert req["service"] == "solo.S"
+      refute Map.has_key?(req, "proto_set_id")
+      refute Map.has_key?(req, "proto_paths")
+      refute Map.has_key?(req, "import_paths")
+    end
+
+    test "import re-enlaza al proto-set local con el mismo nombre" do
+      {:ok, set} = GrpcProtoSets.create_from_file(@solo, "solo.proto", name: "linkme")
+
+      c = GrpcCollections.create("ToExport")
+
+      GrpcCollections.add_request(
+        c.id,
+        Request.new(name: "r", proto_set_id: set.id, entry_file: "solo.proto", method: "U")
+      )
+
+      [stored] = GrpcCollections.list() |> Enum.filter(&(&1.id == c.id))
+      json = GrpcCollectionExport.to_json(stored)
+
+      {:ok, [imported]} = GrpcCollectionImport.parse(json)
+      [ireq] = imported.requests
+
+      assert ireq.proto_set_id == set.id
+      assert ireq.entry_file == "solo.proto"
+    end
+
+    test "import con proto-set inexistente → request sin proto (proto_set_id nil)" do
+      json = ~s({"format":"testflow-grpc-collection","version":2,"collections":[
+        {"name":"C","variables":[],"requests":[
+          {"name":"r","target":"h:1","service":"solo.S","method":"U",
+           "proto_set":"fantasma","entry_file":"solo.proto"}]}]})
+
+      {:ok, [imported]} = GrpcCollectionImport.parse(json)
+      [ireq] = imported.requests
+
+      assert ireq.proto_set_id == nil
+      assert ireq.entry_file == "solo.proto"
+    end
+
+    test "back-compat: importa un sobre v1 con proto_paths locales" do
+      json = ~s({"format":"testflow-grpc-collection","version":1,"collections":[
+        {"name":"old","variables":[],"requests":[
+          {"name":"r","target":"x:1","method":"Echo","proto_paths":["/abs/x.proto"]}]}]})
+
+      {:ok, [imported]} = GrpcCollectionImport.parse(json)
+      [ireq] = imported.requests
+
+      assert ireq.proto_paths == ["/abs/x.proto"]
+      assert ireq.proto_set_id == nil
     end
   end
 
