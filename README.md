@@ -39,6 +39,14 @@ lib/test_flow_phx_web/
 
 El dominio nunca importa infraestructura. Los use cases resuelven el adapter en runtime con `Application.fetch_env!(:test_flow_phx, :http_executor | :request_repo)`, lo que permite swap-ear en tests por un fake (ver `test/support/fake_http_executor.ex`).
 
+## Prerrequisitos
+
+- Elixir / Erlang (ver `mix.exs`).
+- **`protoc` en el PATH** (Protocol Buffers compiler) — requerido por la sección
+  gRPC para parsear `.proto` a un `FileDescriptorSet`. Mínimo recomendado 3.15+;
+  con 3.12 los `.proto` que usen `optional` en proto3 fallarán al compilar.
+  Verificar con `protoc --version`. En Debian/Ubuntu: `apt install protobuf-compiler`.
+
 ## Correr en local
 
 ```bash

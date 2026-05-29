@@ -54,7 +54,13 @@ defmodule TestFlowPhx.MixProject do
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.1.1"},
       {:bandit, "~> 1.5"},
-      {:req, "~> 0.5"}
+      {:req, "~> 0.5"},
+      # gRPC (Fase N): cliente propio. `protobuf` se usa SOLO para
+      # `Google.Protobuf.FileDescriptorSet.decode/1` (parsear el output de
+      # protoc), cero codegen. `mint` (ya transitivo vía Req) provee HTTP/2;
+      # explícito por claridad.
+      {:protobuf, "~> 0.16"},
+      {:mint, "~> 1.7"}
     ]
   end
 
