@@ -15,7 +15,8 @@ config :test_flow_phx,
 config :test_flow_phx,
   http_executor: TestFlowPhx.Infrastructure.Rest.ReqExecutor,
   grpc_executor: TestFlowPhx.Infrastructure.Grpc.GrpcExecutor,
-  request_repo: TestFlowPhx.Infrastructure.Storage.JsonFileRepo
+  request_repo: TestFlowPhx.Infrastructure.Storage.JsonFileRepo,
+  grpc_collection_repo: TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepo
 
 # Configures the endpoint
 config :test_flow_phx, TestFlowPhxWeb.Endpoint,

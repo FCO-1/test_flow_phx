@@ -47,6 +47,13 @@ defmodule TestFlowPhx.Infrastructure.Storage.Paths do
   @spec proto_dir() :: Path.t()
   def proto_dir, do: Path.join([data_dir(), "grpc", "protos"])
 
+  @doc """
+  Archivo de estado del store gRPC (colecciones + tabs gRPC). Aparte del
+  `state_file/0` de REST — ver decisión N.11.
+  """
+  @spec grpc_state_file() :: Path.t()
+  def grpc_state_file, do: Path.join([data_dir(), "grpc", "state.json"])
+
   @spec result_dir(protocol(), Date.t()) :: Path.t()
   def result_dir(protocol, %Date{} = date) do
     Path.join([data_dir(), to_string(protocol), Date.to_iso8601(date)])

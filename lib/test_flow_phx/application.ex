@@ -43,7 +43,10 @@ defmodule TestFlowPhx.Application do
   # propio data dir temporal.
   defp storage_children do
     if Application.get_env(:test_flow_phx, :start_storage, true) do
-      [TestFlowPhx.Infrastructure.Storage.JsonFileRepo]
+      [
+        TestFlowPhx.Infrastructure.Storage.JsonFileRepo,
+        TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepo
+      ]
     else
       []
     end
