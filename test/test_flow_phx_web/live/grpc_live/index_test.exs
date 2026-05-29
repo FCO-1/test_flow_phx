@@ -4,7 +4,9 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
   import Phoenix.LiveViewTest
 
   alias TestFlowPhx.Domain.Grpc.Response
+  alias TestFlowPhx.Infrastructure.Storage.JsonFileRepo
   alias TestFlowPhx.Support.FakeGrpcExecutor
+  alias TestFlowPhx.UseCases.Globals
   alias TestFlowPhx.UseCases.Grpc.ProtoLoader
 
   @proto """
@@ -126,6 +128,38 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       assert_receive {:fake_grpc_blocking, _task}, 1_000
       html = view |> element("button", "Cancel") |> render_click()
       assert html =~ "cancelado"
+    end
+  end
+
+  describe "variables {{var}}" do
+    setup do
+      tmp = Path.join(System.tmp_dir!(), "tf_grpc_vars_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+      on_exit(fn -> File.rm_rf!(tmp) end)
+      start_supervised!({JsonFileRepo, name: JsonFileRepo, path: Path.join(tmp, "state.json"), flush_after_ms: 10})
+      :ok
+    end
+
+    test "resuelve {{var}} (globals) en target y body antes de enviar; muestra el hint", %{conn: conn} do
+      Globals.replace([
+        %{name: "host", value: "1.2.3.4:9000", enabled: true},
+        %{name: "user_id", value: "ada", enabled: true}
+      ])
+
+      FakeGrpcExecutor.stage(%Response{status: 0})
+
+      {:ok, view, html} = live(conn, "/grpc")
+      assert html =~ "{{host}}"
+
+      view
+      |> form("#grpc-form", request: %{target: "{{host}}", body_text: ~s({"id":"{{user_id}}"})})
+      |> render_submit()
+
+      await(view)
+
+      captured = FakeGrpcExecutor.last_request()
+      assert captured.target == "1.2.3.4:9000"
+      assert captured.body_text == ~s({"id":"ada"})
     end
   end
 

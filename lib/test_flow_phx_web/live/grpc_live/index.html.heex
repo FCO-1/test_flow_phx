@@ -126,9 +126,16 @@
             name="request[body_text]"
             rows="8"
             phx-debounce="200"
-            placeholder={~s({"field": "value"})}
+            placeholder={~s({"field": "{{var}}"})}
             class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800"
           >{@request.body_text}</textarea>
+
+          <p :if={enabled_var_names(@globals) != []} class="text-xs text-zinc-500 mt-2">
+            Variables (en target, metadata y body):
+            <span :for={name <- enabled_var_names(@globals)} class="font-mono text-zinc-700 dark:text-zinc-300">
+              {"{{" <> name <> "}}"}
+            </span>
+          </p>
         </section>
       </form>
     </div>

@@ -21,6 +21,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
 
   alias TestFlowPhx.Domain.Grpc.{Request, Response}
   alias TestFlowPhx.Infrastructure.Storage.Paths
+  alias TestFlowPhx.UseCases.{Globals, Variables}
   alias TestFlowPhx.UseCases.Grpc.{ProtoLoader, SendGrpcRequest}
   alias TestFlowPhxWeb.GrpcLive.{Format, Params, Proto}
   alias TestFlowPhxWeb.TesterComponents
@@ -31,6 +32,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
       socket
       |> assign(:page_title, "TestFlow gRPC")
       |> assign(:request, Request.new(%{target: "localhost:50051"}))
+      |> assign(:globals, load_globals())
       |> assign(:proto, nil)
       |> assign(:proto_error, nil)
       |> assign(:proto_names, [])
@@ -108,9 +110,14 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
 
       # on_message empuja cada mensaje al LV en vivo; el executor igual acumula
       # todo en Response.messages para el resultado final.
+      vars = active_vars(socket)
+
       task =
         Task.Supervisor.async_nolink(TestFlowPhx.TaskSupervisor, fn ->
-          SendGrpcRequest.execute(request, on_message: fn msg -> Kernel.send(lv, {:grpc_msg, msg}) end)
+          SendGrpcRequest.execute(request,
+            vars: vars,
+            on_message: fn msg -> Kernel.send(lv, {:grpc_msg, msg}) end
+          )
         end)
 
       socket =
@@ -187,6 +194,23 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   end
 
   def handle_info(_other, socket), do: {:noreply, socket}
+
+  # ---------- Variables ----------
+
+  # Variables aplicables a este request. Por ahora solo globals; las variables
+  # por colección llegan con N.11 (colecciones mixtas REST+gRPC).
+  defp active_vars(socket), do: Variables.merge(socket.assigns.globals, [])
+
+  defp load_globals do
+    Globals.list()
+  catch
+    :exit, _ -> []
+  end
+
+  @doc "Nombres de las variables globales habilitadas (para el hint del template)."
+  def enabled_var_names(globals) do
+    for %{name: name, enabled: true} <- globals, name != "", do: name
+  end
 
   # ---------- Helpers de carga ----------
 
