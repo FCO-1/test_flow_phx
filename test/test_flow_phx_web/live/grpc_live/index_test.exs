@@ -7,7 +7,7 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
   alias TestFlowPhx.Infrastructure.Storage.{GrpcJsonFileRepo, JsonFileRepo}
   alias TestFlowPhx.Support.FakeGrpcExecutor
   alias TestFlowPhx.UseCases.Globals
-  alias TestFlowPhx.UseCases.Grpc.{GrpcCollections, ProtoLoader}
+  alias TestFlowPhx.UseCases.Grpc.{GrpcCollections, GrpcTabs, ProtoLoader}
 
   @proto """
   syntax = "proto3";
@@ -241,6 +241,104 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       await(view)
 
       assert FakeGrpcExecutor.last_request().target == "9.9.9.9:1"
+    end
+  end
+
+  describe "tabs" do
+    setup do
+      tmp = Path.join(System.tmp_dir!(), "tf_grpc_tabs_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      start_supervised!(
+        {GrpcJsonFileRepo,
+         name: GrpcJsonFileRepo, path: Path.join(tmp, "state.json"), flush_after_ms: 10}
+      )
+
+      :ok
+    end
+
+    test "abre con una tab Untitled y permite crear más", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/grpc")
+      assert html =~ "Untitled"
+
+      html = view |> element("button[aria-label='New tab']") |> render_click()
+      # dos tabs Untitled ahora
+      assert html |> String.split("Untitled") |> length() >= 3
+    end
+
+    test "cada tab tiene su propio request; cambiar de tab restaura su contenido",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      # tab 1: setea un target
+      view |> form("#grpc-form", request: %{target: "uno:1111"}) |> render_change()
+      [tab1] = GrpcTabs.list()
+
+      # nueva tab (tab 2) con otro target
+      view |> element("button[aria-label='New tab']") |> render_click()
+      view |> form("#grpc-form", request: %{target: "dos:2222"}) |> render_change()
+
+      tabs = GrpcTabs.list()
+      assert length(tabs) == 2
+      assert Enum.map(tabs, & &1.target) == ["uno:1111", "dos:2222"]
+
+      # volver a la primera tab restaura su target
+      html =
+        view
+        |> element("button[phx-click='select_tab'][phx-value-id='#{tab1.id}']")
+        |> render_click()
+
+      assert html =~ "uno:1111"
+    end
+
+    test "cerrar la última tab siembra una fresca", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+      view |> form("#grpc-form", request: %{target: "x:1"}) |> render_change()
+      [tab] = GrpcTabs.list()
+
+      view
+      |> element("button[phx-click='close_tab'][phx-value-id='#{tab.id}']")
+      |> render_click()
+
+      tabs = GrpcTabs.list()
+      assert length(tabs) == 1
+      assert hd(tabs).id != tab.id
+    end
+
+    test "las tabs persisten entre reloads del navegador", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+      view |> form("#grpc-form", request: %{target: "persistido:1"}) |> render_change()
+      view |> element("button[aria-label='New tab']") |> render_click()
+      view |> form("#grpc-form", request: %{target: "persistido:2"}) |> render_change()
+
+      # nuevo mount = nuevo "reload": restaura las dos tabs
+      {:ok, _view2, html2} = live(conn, "/grpc")
+      assert html2 =~ "persistido:2"
+      assert length(GrpcTabs.list()) == 2
+    end
+
+    test "el response queda aislado por tab", %{conn: conn} do
+      FakeGrpcExecutor.stage(%Response{status: 0, body_decoded: %{"reply" => "tab-uno"}, duration_ms: 1})
+
+      {:ok, view, _html} = live(conn, "/grpc")
+      view |> form("#grpc-form", request: %{target: "localhost:50051"}) |> render_change()
+      [tab1] = GrpcTabs.list()
+
+      view |> form("#grpc-form", request: %{target: "localhost:50051"}) |> render_submit()
+      assert await(view) =~ "tab-uno"
+
+      # nueva tab: sin respuesta todavía
+      html = view |> element("button[aria-label='New tab']") |> render_click()
+      assert html =~ "Sin respuesta todavía."
+
+      # volver a la tab 1 muestra de nuevo su respuesta
+      html =
+        view
+        |> element("button[phx-click='select_tab'][phx-value-id='#{tab1.id}']")
+        |> render_click()
+
+      assert html =~ "tab-uno"
     end
   end
 
