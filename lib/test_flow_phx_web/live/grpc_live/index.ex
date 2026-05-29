@@ -25,7 +25,13 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   alias TestFlowPhx.Domain.Grpc.{Collection, Request, Response}
   alias TestFlowPhx.Infrastructure.Storage.Paths
   alias TestFlowPhx.UseCases.{Globals, Variables}
-  alias TestFlowPhx.UseCases.Grpc.{GrpcCollections, ProtoLoader, SendGrpcRequest}
+  alias TestFlowPhx.UseCases.Grpc.{
+    GrpcCollectionExport,
+    GrpcCollectionImport,
+    GrpcCollections,
+    ProtoLoader,
+    SendGrpcRequest
+  }
   alias TestFlowPhxWeb.GrpcLive.{Format, Params, Proto, TabState}
   alias TestFlowPhxWeb.TesterComponents
 
@@ -210,6 +216,43 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     try_call(fn -> GrpcCollections.delete(id) end)
     {:noreply, refresh_collections(socket)}
   end
+
+  # ---------- Export / Import (formato nativo gRPC) ----------
+
+  def handle_event("export_grpc_collection", %{"id" => id}, socket) do
+    case Enum.find(socket.assigns.collections, &(&1.id == id)) do
+      nil ->
+        {:noreply, socket}
+
+      coll ->
+        {:noreply, download_json(socket, coll.name, GrpcCollectionExport.to_json(coll))}
+    end
+  end
+
+  def handle_event("export_all_grpc_collections", _params, socket) do
+    case socket.assigns.collections do
+      [] -> {:noreply, socket}
+      colls -> {:noreply, download_json(socket, nil, GrpcCollectionExport.to_json(colls))}
+    end
+  end
+
+  def handle_event("import:file", %{"content" => content}, socket) do
+    case GrpcCollectionImport.import_all(content) do
+      {:ok, count} ->
+        socket =
+          socket
+          |> refresh_collections()
+          |> put_flash(:info, "Importadas #{count} #{collection_word(count)}.")
+
+        {:noreply, socket}
+
+      {:error, reason} ->
+        {:noreply, put_flash(socket, :error, GrpcCollectionImport.format_error(reason))}
+    end
+  end
+
+  def handle_event("import:error", %{"message" => msg}, socket),
+    do: {:noreply, put_flash(socket, :error, msg)}
 
   # Guarda el request actual en una colección. El nombre del form tiene
   # precedencia; si viene vacío cae al nombre del request en edición.
@@ -446,6 +489,19 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   defp refresh_collections(socket),
     do: assign(socket, :collections, load_collections())
 
+  # Dispara la descarga del JSON en el navegador vía el hook FileDownload
+  # (`download:file`), igual que el export REST.
+  defp download_json(socket, name, json) do
+    push_event(socket, "download:file", %{
+      filename: GrpcCollectionExport.suggested_filename(name),
+      content: json,
+      mime: "application/json"
+    })
+  end
+
+  defp collection_word(1), do: "colección"
+  defp collection_word(_), do: "colecciones"
+
   # Ejecuta una mutación del repo tragando `:exit` (repo ausente en test env
   # sin storage). Devuelve el valor de la función, o nil si el repo no está.
   defp try_call(fun) when is_function(fun, 0) do
@@ -635,7 +691,33 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   def grpc_collections_sidebar(assigns) do
     ~H"""
     <div class="space-y-3">
-      <h2 class="text-sm font-semibold">Colecciones</h2>
+      <div class="flex items-center justify-between">
+        <h2 class="text-sm font-semibold">Colecciones</h2>
+        <div class="flex items-center gap-1">
+          <button
+            :if={@collections != []}
+            type="button"
+            phx-click="export_all_grpc_collections"
+            class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 px-1"
+          >
+            Export all
+          </button>
+          <label
+            for="grpc-import-file-input"
+            title="Importar colección gRPC"
+            class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 px-1 cursor-pointer"
+          >
+            Import
+          </label>
+          <input
+            id="grpc-import-file-input"
+            type="file"
+            accept="application/json,.json"
+            phx-hook="FileImport"
+            class="hidden"
+          />
+        </div>
+      </div>
 
       <form phx-submit="save_to_collection" class="space-y-1">
         <input
@@ -693,6 +775,14 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
             >{if MapSet.member?(@expanded, c.id), do: "▼", else: "▶"}</button>
             <span class="flex-1 truncate" title={c.name}>{c.name}</span>
             <span class="text-xs text-zinc-400">{length(c.requests)}</span>
+            <button
+              type="button"
+              phx-click="export_grpc_collection"
+              phx-value-id={c.id}
+              aria-label="Export collection"
+              title="Export"
+              class="text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 px-1 invisible group-hover:visible text-xs"
+            >↓</button>
             <button
               type="button"
               phx-click="delete_collection"

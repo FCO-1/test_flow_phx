@@ -34,6 +34,17 @@ defmodule TestFlowPhx.UseCases.Grpc.GrpcCollections do
   @spec clear() :: :ok
   def clear, do: repo().clear_collections()
 
+  @doc """
+  Inserta/reemplaza una colección completa tal cual (incluyendo sus requests y
+  variables). A diferencia de `create/1`/`add_request/2`, la usa el importador
+  que ya asignó IDs frescos antes de llamar aquí.
+  """
+  @spec upsert_raw(Collection.t()) :: :ok
+  def upsert_raw(%Collection{} = c) do
+    c = if c.id in [nil, ""], do: %{c | id: Request.new_id()}, else: c
+    repo().upsert_collection(c)
+  end
+
   @spec add_request(String.t(), Request.t()) :: Request.t()
   def add_request(collection_id, %Request{} = req) when is_binary(collection_id) do
     req = if req.id in [nil, ""], do: %{req | id: Request.new_id()}, else: req

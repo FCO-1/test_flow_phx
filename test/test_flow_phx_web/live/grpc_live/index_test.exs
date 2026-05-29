@@ -342,6 +342,53 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
     end
   end
 
+  describe "export / import nativo" do
+    setup do
+      tmp = Path.join(System.tmp_dir!(), "tf_grpc_exim_lv_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      start_supervised!(
+        {GrpcJsonFileRepo,
+         name: GrpcJsonFileRepo, path: Path.join(tmp, "state.json"), flush_after_ms: 10}
+      )
+
+      :ok
+    end
+
+    test "Export dispara la descarga del JSON de la colección", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+      view |> form("form[phx-submit='new_collection']", %{name: "Exportable"}) |> render_submit()
+      [coll] = GrpcCollections.list()
+
+      view
+      |> element("button[phx-click='export_grpc_collection'][phx-value-id='#{coll.id}']")
+      |> render_click()
+
+      assert_push_event(view, "download:file", %{content: content, filename: filename})
+      assert filename =~ ".json"
+      assert {:ok, %{"format" => "testflow-grpc-collection"}} = Jason.decode(content)
+    end
+
+    test "Import carga colecciones desde un JSON nativo", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      json =
+        ~s({"format":"testflow-grpc-collection","version":1,"collections":[{"name":"Importada","requests":[{"name":"r","target":"h:1","method":"Echo"}]}]})
+
+      render_hook(view, "import:file", %{"content" => json})
+
+      assert [%{name: "Importada", requests: [%{method: "Echo"}]}] = GrpcCollections.list()
+      assert render(view) =~ "Importada"
+    end
+
+    test "Import de JSON inválido muestra error", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+      html = render_hook(view, "import:file", %{"content" => "no es json"})
+      assert html =~ "no es JSON válido"
+    end
+  end
+
   describe "carga de .proto" do
     test "sube un .proto y puebla los dropdowns de service/method", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/grpc")
