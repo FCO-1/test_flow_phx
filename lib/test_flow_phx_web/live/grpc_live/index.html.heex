@@ -14,7 +14,17 @@
     </nav>
   </header>
 
-  <main class="flex-1 flex flex-col xl:flex-row gap-4 p-4 min-h-0 overflow-hidden">
+  <div class="flex-1 flex min-h-0">
+    <%!-- ── Sidebar: colecciones gRPC ── --%>
+    <aside class="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3 overflow-y-auto">
+      <.grpc_collections_sidebar
+        collections={@collections}
+        expanded={@expanded_collections}
+        request={@request}
+      />
+    </aside>
+
+    <main class="flex-1 flex flex-col xl:flex-row gap-4 p-4 min-h-0 overflow-hidden">
     <%!-- ── Panel izquierdo: builder ── --%>
     <div class="xl:w-1/2 xl:min-w-0 flex flex-col gap-4 overflow-y-auto">
       <%!-- Carga de .proto --%>
@@ -192,5 +202,6 @@
         <% end %>
       </section>
     </div>
-  </main>
+    </main>
+  </div>
 </div>

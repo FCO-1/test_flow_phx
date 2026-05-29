@@ -4,10 +4,10 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
   import Phoenix.LiveViewTest
 
   alias TestFlowPhx.Domain.Grpc.Response
-  alias TestFlowPhx.Infrastructure.Storage.JsonFileRepo
+  alias TestFlowPhx.Infrastructure.Storage.{GrpcJsonFileRepo, JsonFileRepo}
   alias TestFlowPhx.Support.FakeGrpcExecutor
   alias TestFlowPhx.UseCases.Globals
-  alias TestFlowPhx.UseCases.Grpc.ProtoLoader
+  alias TestFlowPhx.UseCases.Grpc.{GrpcCollections, ProtoLoader}
 
   @proto """
   syntax = "proto3";
@@ -160,6 +160,87 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       captured = FakeGrpcExecutor.last_request()
       assert captured.target == "1.2.3.4:9000"
       assert captured.body_text == ~s({"id":"ada"})
+    end
+  end
+
+  describe "colecciones" do
+    setup do
+      tmp = Path.join(System.tmp_dir!(), "tf_grpc_coll_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      start_supervised!(
+        {GrpcJsonFileRepo,
+         name: GrpcJsonFileRepo, path: Path.join(tmp, "state.json"), flush_after_ms: 10}
+      )
+
+      :ok
+    end
+
+    test "crea una colección desde el sidebar", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      html =
+        view
+        |> form("form[phx-submit='new_collection']", %{name: "Mi colección"})
+        |> render_submit()
+
+      assert html =~ "Mi colección"
+      assert [%{name: "Mi colección"}] = GrpcCollections.list()
+    end
+
+    test "guarda el request actual y lo reabre en el form", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      view |> form("form[phx-submit='new_collection']", %{name: "C"}) |> render_submit()
+      [coll] = GrpcCollections.list()
+
+      view
+      |> form("#grpc-form", request: %{target: "saved-host:1234", body_text: ~s({"a":1})})
+      |> render_change()
+
+      view
+      |> form("form[phx-submit='save_to_collection']", %{collection_id: coll.id, name: "Echo guardado"})
+      |> render_submit()
+
+      # el request quedó guardado en la colección
+      assert [stored] = GrpcCollections.list()
+      assert [%{name: "Echo guardado", target: "saved-host:1234"}] = stored.requests
+
+      # expandir la colección lo muestra
+      html =
+        view
+        |> element("button[phx-click='toggle_collection'][phx-value-id='#{coll.id}']")
+        |> render_click()
+
+      assert html =~ "Echo guardado"
+
+      # cambiar el target y reabrir el guardado lo restaura
+      view |> form("#grpc-form", request: %{target: "otro:9999"}) |> render_change()
+
+      html = view |> element("button[phx-click='open_grpc_request']") |> render_click()
+      assert html =~ "saved-host:1234"
+    end
+
+    test "las collection-vars resuelven {{var}} al enviar", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      view |> form("form[phx-submit='new_collection']", %{name: "C"}) |> render_submit()
+      [coll] = GrpcCollections.list()
+      :ok = GrpcCollections.set_variables(coll.id, [%{name: "host", value: "9.9.9.9:1", enabled: true}])
+
+      # guardar el request en la colección: a partir de acá pertenece a ella
+      view |> form("#grpc-form", request: %{target: "{{host}}"}) |> render_change()
+
+      view
+      |> form("form[phx-submit='save_to_collection']", %{collection_id: coll.id, name: "R"})
+      |> render_submit()
+
+      FakeGrpcExecutor.stage(%Response{status: 0})
+      view |> form("#grpc-form", request: %{target: "{{host}}"}) |> render_submit()
+      await(view)
+
+      assert FakeGrpcExecutor.last_request().target == "9.9.9.9:1"
     end
   end
 
