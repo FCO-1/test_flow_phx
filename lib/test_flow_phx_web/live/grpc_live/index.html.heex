@@ -1,0 +1,171 @@
+<div class="flex flex-col h-screen w-screen dark:text-zinc-100 dark:bg-zinc-950">
+  <header class="shrink-0 flex items-center gap-4 border-b border-zinc-200 dark:border-zinc-800 px-4 py-2">
+    <h1 class="font-semibold">TestFlow</h1>
+    <nav class="flex gap-1 text-sm">
+      <.link
+        navigate={~p"/"}
+        class="px-3 py-1 rounded-md text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      >
+        REST
+      </.link>
+      <span class="px-3 py-1 rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium">
+        gRPC
+      </span>
+    </nav>
+  </header>
+
+  <main class="flex-1 flex flex-col xl:flex-row gap-4 p-4 min-h-0 overflow-hidden">
+    <%!-- ── Panel izquierdo: builder ── --%>
+    <div class="xl:w-1/2 xl:min-w-0 flex flex-col gap-4 overflow-y-auto">
+      <%!-- Carga de .proto --%>
+      <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+        <h2 class="text-sm font-semibold mb-2">Archivos .proto</h2>
+        <form id="proto-form" phx-submit="load_protos" phx-change="validate_upload" class="flex items-center gap-2 flex-wrap">
+          <.live_file_input upload={@uploads.protos} class="text-sm" />
+          <button
+            type="submit"
+            class="px-3 py-1.5 rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-sm font-medium hover:opacity-90"
+          >
+            Cargar
+          </button>
+        </form>
+
+        <div :for={entry <- @uploads.protos.entries} class="text-xs text-zinc-500 mt-1">
+          {entry.client_name}
+          <span :for={err <- upload_errors(@uploads.protos, entry)} class="text-red-600">
+            — {Format.upload_error(err)}
+          </span>
+        </div>
+
+        <p :if={@proto_names != []} class="text-xs text-emerald-600 dark:text-emerald-400 mt-2">
+          Cargado: {Enum.join(@proto_names, ", ")}
+        </p>
+        <p :if={@proto_error} class="text-xs text-red-600 mt-2 whitespace-pre-wrap font-mono">
+          {@proto_error}
+        </p>
+      </section>
+
+      <form id="grpc-form" phx-change="validate" phx-submit="send" class="flex flex-col gap-4">
+        <%!-- target + send --%>
+        <div class="flex gap-2">
+          <input
+            type="text"
+            name="request[target]"
+            value={@request.target}
+            placeholder="host:port"
+            phx-debounce="200"
+            class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800"
+          />
+          <button
+            type="submit"
+            disabled={@in_flight? or is_nil(@proto)}
+            class="px-5 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {if @in_flight?, do: "Enviando…", else: "Send"}
+          </button>
+        </div>
+
+        <%!-- service + method --%>
+        <div class="grid grid-cols-2 gap-2">
+          <label class="text-xs text-zinc-500 flex flex-col gap-1">
+            Service
+            <select
+              name="request[service]"
+              disabled={is_nil(@proto)}
+              class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 disabled:opacity-50"
+            >
+              <option :if={is_nil(@proto)} value="">— cargá un .proto —</option>
+              <option :for={svc <- Proto.services(@proto)} value={svc.name} selected={svc.name == @request.service}>
+                {svc.name}
+              </option>
+            </select>
+          </label>
+
+          <label class="text-xs text-zinc-500 flex flex-col gap-1">
+            Method
+            <select
+              name="request[method]"
+              disabled={is_nil(@proto)}
+              class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 disabled:opacity-50"
+            >
+              <option
+                :for={m <- Proto.methods_for(@proto, @request.service)}
+                value={m.name}
+                selected={m.name == @request.method}
+              >
+                {m.name}{if m.server_streaming?, do: " (stream)", else: ""}
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <%!-- metadata --%>
+        <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+          <h2 class="text-sm font-semibold mb-2">Metadata</h2>
+          <TesterComponents.kv_editor
+            rows={@request.metadata}
+            field="metadata"
+            placeholder_key="x-header"
+            placeholder_value="value"
+          />
+        </section>
+
+        <%!-- body --%>
+        <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+          <h2 class="text-sm font-semibold mb-2">Body (JSON)</h2>
+          <textarea
+            name="request[body_text]"
+            rows="8"
+            phx-debounce="200"
+            placeholder={~s({"field": "value"})}
+            class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800"
+          >{@request.body_text}</textarea>
+        </section>
+      </form>
+    </div>
+
+    <%!-- ── Panel derecho: response ── --%>
+    <div class="xl:w-1/2 xl:min-w-0 flex flex-col overflow-y-auto">
+      <section class="flex-1 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 min-h-[12rem]">
+        <h2 class="text-sm font-semibold mb-3">Response</h2>
+
+        <%= cond do %>
+          <% @in_flight? -> %>
+            <p class="text-sm text-zinc-500">Enviando…</p>
+          <% is_nil(@response) -> %>
+            <p class="text-sm text-zinc-400">Sin respuesta todavía.</p>
+          <% @response.error -> %>
+            <div class="space-y-2">
+              <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">
+                {@response.error.type}{if @response.error.code, do: " · #{@response.error.code}", else: ""}
+              </span>
+              <pre class="text-xs font-mono whitespace-pre-wrap text-red-700 dark:text-red-300">{@response.error.message}</pre>
+              <div :if={@response.messages != []}>
+                <p class="text-xs text-zinc-500 mt-2">Mensajes recibidos antes del error:</p>
+                <pre class="text-xs font-mono whitespace-pre-wrap">{Format.pretty(@response.messages)}</pre>
+              </div>
+            </div>
+          <% true -> %>
+            <div class="space-y-3">
+              <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                OK · grpc-status {@response.status} · {@response.duration_ms}ms
+              </span>
+
+              <%= if @response.streaming? do %>
+                <p class="text-xs text-zinc-500">{length(@response.messages)} mensaje(s)</p>
+                <div class="space-y-2">
+                  <pre
+                    :for={{msg, i} <- Enum.with_index(@response.messages)}
+                    class="text-xs font-mono whitespace-pre-wrap rounded bg-zinc-50 dark:bg-zinc-800 p-2"
+                  ><span class="text-zinc-400">#{i + 1}</span>
+{Format.pretty(msg)}</pre>
+                </div>
+              <% else %>
+                <pre class="text-xs font-mono whitespace-pre-wrap rounded bg-zinc-50 dark:bg-zinc-800 p-3">{Format.pretty(@response.body_decoded)}</pre>
+              <% end %>
+            </div>
+        <% end %>
+      </section>
+    </div>
+  </main>
+</div>

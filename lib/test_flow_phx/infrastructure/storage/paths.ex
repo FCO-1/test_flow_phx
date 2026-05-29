@@ -43,6 +43,10 @@ defmodule TestFlowPhx.Infrastructure.Storage.Paths do
   @spec state_file() :: Path.t()
   def state_file, do: Path.join(data_dir(), "state.json")
 
+  @doc "Directorio donde se guardan los `.proto` subidos por el usuario (gRPC)."
+  @spec proto_dir() :: Path.t()
+  def proto_dir, do: Path.join([data_dir(), "grpc", "protos"])
+
   @spec result_dir(protocol(), Date.t()) :: Path.t()
   def result_dir(protocol, %Date{} = date) do
     Path.join([data_dir(), to_string(protocol), Date.to_iso8601(date)])
