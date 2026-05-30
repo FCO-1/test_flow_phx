@@ -33,6 +33,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     GrpcCollectionExport,
     GrpcCollectionImport,
     GrpcCollections,
+    GrpcHistory,
     GrpcProtoSets,
     ProtoLoader,
     SendGrpcRequest
@@ -60,6 +61,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
       |> assign(:send_tasks, %{})
       |> assign(:globals, load_globals())
       |> assign(:collections, load_collections())
+      |> assign(:history, load_history())
       |> assign(:expanded_collections, MapSet.new())
       |> assign(:sidebar_section, :collections)
       |> assign(:collection_vars_modal, nil)
@@ -312,10 +314,10 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   def handle_event("import:error", %{"message" => msg}, socket),
     do: {:noreply, put_flash(socket, :error, msg)}
 
-  # ---------- Sidebar: secciones (Colecciones | Variables) ----------
+  # ---------- Sidebar: secciones (Colecciones | Historial | Variables) ----------
 
   def handle_event("sidebar_section", %{"section" => section}, socket)
-      when section in ["collections", "variables"] do
+      when section in ["collections", "history", "variables"] do
     {:noreply, assign(socket, :sidebar_section, String.to_existing_atom(section))}
   end
 
@@ -590,6 +592,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
           |> update(:send_refs, &Map.delete(&1, ref))
           |> update(:send_tasks, &Map.delete(&1, tab_id))
           |> TabState.put_active_view()
+          |> record_history(tab_id, response)
 
         {:noreply, socket}
 
@@ -613,18 +616,20 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
           if MapSet.member?(socket.assigns.cancelled_tabs, tab_id) do
             socket
           else
-            update(socket, :responses, fn m ->
-              Map.put(m, tab_id, %Response{
-                error: %{
-                  type: :unknown,
-                  message:
-                    Translations.t(socket.assigns.locale, "grpc.flashes.send_failed",
-                      reason: inspect(reason)
-                    ),
-                  code: nil
-                }
-              })
-            end)
+            error_response = %Response{
+              error: %{
+                type: :unknown,
+                message:
+                  Translations.t(socket.assigns.locale, "grpc.flashes.send_failed",
+                    reason: inspect(reason)
+                  ),
+                code: nil
+              }
+            }
+
+            socket
+            |> update(:responses, &Map.put(&1, tab_id, error_response))
+            |> record_history(tab_id, error_response)
           end
 
         {:noreply, TabState.put_active_view(socket)}
@@ -656,6 +661,28 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     Globals.list()
   catch
     :exit, _ -> []
+  end
+
+  defp load_history do
+    GrpcHistory.list()
+  catch
+    :exit, _ -> []
+  end
+
+  # Registra el Send completado en el historial gRPC (entry resumido + cuerpo a
+  # archivo, vía `GrpcHistory`) y refresca el assign `:history`. El request es el
+  # de la tab que disparó el send; si ya no existe (tab cerrada) no registra.
+  # `GrpcHistory.record/2` degrada solo si el store no corre, así que esto nunca
+  # rompe el flujo del LiveView.
+  defp record_history(socket, tab_id, %Response{} = response) do
+    case Enum.find(socket.assigns.tabs, &(&1.id == tab_id)) do
+      %Request{} = request ->
+        GrpcHistory.record(request, response)
+        assign(socket, :history, load_history())
+
+      _ ->
+        socket
+    end
   end
 
   defp parse_globals_params(params), do: parse_vars_params(params)
