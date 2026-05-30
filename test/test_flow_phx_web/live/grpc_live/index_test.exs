@@ -418,6 +418,23 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
 
       assert html =~ "tab-uno"
     end
+
+    test "Guardar todas las tabs crea una colección con un request por tab",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      # arranca con 1 tab; abrir una segunda
+      view |> element("button[phx-click='new_tab']") |> render_click()
+      assert length(GrpcTabs.list()) == 2
+
+      # volcar todas a una colección nueva
+      view
+      |> form("form[phx-submit='save_all_tabs']", %{name: "Mis tabs"})
+      |> render_submit()
+
+      assert [%{name: "Mis tabs", requests: reqs}] = GrpcCollections.list()
+      assert length(reqs) == 2
+    end
   end
 
   describe "export / import nativo" do

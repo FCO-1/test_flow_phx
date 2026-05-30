@@ -412,6 +412,43 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     end
   end
 
+  # Vuelca TODAS las tabs abiertas a una colección nueva (nombrada por el form;
+  # default si viene vacío). Cada tab se guarda como request independiente (id
+  # fresco, no atado a la tab) y nombrado por su nombre o, si es "Untitled", por
+  # su método. La colección nueva queda expandida.
+  def handle_event("save_all_tabs", params, socket) do
+    tabs = socket.assigns.tabs
+
+    if tabs == [] do
+      {:noreply, socket}
+    else
+      name =
+        case String.trim(to_string(params["name"])) do
+          "" -> "Tabs (#{length(tabs)})"
+          n -> n
+        end
+
+      case try_call(fn -> GrpcCollections.create(name) end) do
+        %Collection{id: coll_id} ->
+          Enum.each(tabs, fn t ->
+            req = %{t | id: Request.new_id(), name: tab_label(t)}
+            try_call(fn -> GrpcCollections.add_request(coll_id, req) end)
+          end)
+
+          socket =
+            socket
+            |> refresh_collections()
+            |> update(:expanded_collections, &MapSet.put(&1, coll_id))
+            |> put_flash(:info, Translations.t(socket.assigns.locale, "grpc.flashes.imported_one"))
+
+          {:noreply, socket}
+
+        _ ->
+          {:noreply, socket}
+      end
+    end
+  end
+
   # Abre un request guardado en una **tab nueva** (copia con id de tab fresco,
   # apilada al final y activada), espejo del `open_request_in_tab` de REST. Así se
   # pueden tener varios requests de la colección abiertos a la vez y correrlos sin
@@ -701,6 +738,16 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     end
   end
 
+  # Nombre con el que se guarda una tab en una colección: su nombre si lo tiene,
+  # si no (o si es "Untitled") cae al método; último recurso "Untitled".
+  defp tab_label(%Request{name: name, method: method}) do
+    cond do
+      is_binary(name) and name not in ["", "Untitled"] -> name
+      is_binary(method) and method != "" -> method
+      true -> "Untitled"
+    end
+  end
+
   defp find_request(collections, cid, rid) do
     with %Collection{requests: reqs} <- Enum.find(collections, &(&1.id == cid)),
          %Request{} = req <- Enum.find(reqs, &(&1.id == rid)) do
@@ -903,6 +950,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   attr :collections, :list, required: true
   attr :expanded, :any, required: true
   attr :request, Request, required: true
+  attr :tab_count, :integer, default: 0
   attr :locale, :string, required: true
 
   def grpc_collections_sidebar(assigns) do
@@ -974,6 +1022,23 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
           autocomplete="off"
           class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs dark:bg-zinc-800"
         />
+      </form>
+
+      <form :if={@tab_count > 0} phx-submit="save_all_tabs" class="flex gap-1">
+        <input
+          type="text"
+          name="name"
+          placeholder="nueva colección desde tabs"
+          autocomplete="off"
+          class="flex-1 min-w-0 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs dark:bg-zinc-800"
+        />
+        <button
+          type="submit"
+          title="Guardar todas las tabs abiertas en una colección nueva"
+          class="shrink-0 px-2 py-1 rounded-md border border-zinc-300 dark:border-zinc-700 text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        >
+          ⤓ {@tab_count} tabs
+        </button>
       </form>
 
       <p :if={@collections == []} class="text-xs text-zinc-400 dark:text-zinc-500 italic px-1">
