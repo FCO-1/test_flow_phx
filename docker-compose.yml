@@ -1,0 +1,34 @@
+# TestFlow — orquestación local de la imagen Docker.
+#
+# Los puertos y secretos vienen de `.env` (no versionado). Copiá `.env.example`
+# a `.env` y ajustá. donavida NO va acá: es un proyecto independiente; este
+# probador lo alcanza por el target que escribas en la UI
+# (host.docker.internal:<puerto> si corre en el host, o una URL de ngrok/remota).
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: testflow:local
+    # Mapeo host:container. Ambos lados usan ${PORT} para que el server escuche
+    # en el mismo puerto que exponés (PORT lo lee runtime.exs).
+    ports:
+      - "${PORT:-4100}:${PORT:-4100}"
+    environment:
+      PHX_SERVER: "true"
+      SECRET_KEY_BASE: "${SECRET_KEY_BASE}"
+      PHX_HOST: "${PHX_HOST:-localhost}"
+      PORT: "${PORT:-4100}"
+      TEST_FLOW_DATA_DIR: "/data"
+    volumes:
+      # Persistencia de colecciones, proto-sets e historial entre reinicios.
+      - testflow_data:/data
+    extra_hosts:
+      # Permite alcanzar un donavida que corra en el HOST con
+      # target "host.docker.internal:<puerto>" (en Linux mapea al gateway).
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+volumes:
+  testflow_data:

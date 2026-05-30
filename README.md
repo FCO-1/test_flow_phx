@@ -87,6 +87,39 @@ Override del directorio de datos:
 TEST_FLOW_DATA_DIR=/tmp/tf iex -S mix phx.server
 ```
 
+## Correr con Docker
+
+Imagen autocontenida: incluye **`protoc`** y los **assets ya compilados** (la UI
+sale estilada sin watchers). La ejecución sin Docker (arriba) sigue igual; Docker
+es aditivo.
+
+```bash
+cp .env.example .env         # ajustá PORT y poné un SECRET_KEY_BASE (mix phx.gen.secret)
+docker compose build
+docker compose up -d         # UI en http://localhost:${PORT}  (default .env: 4100)
+```
+
+Los datos persisten en el volumen `testflow_data`. Parar: `docker compose down`
+(conserva datos) / `down -v` (los borra). Guía completa: `docs/guias/docker.md`.
+
+### Apuntar a un servidor gRPC (target) desde el contenedor
+
+> **Importante**: dentro del contenedor, `localhost` es el **propio contenedor**,
+> no tu host. Para alcanzar un servidor gRPC que corre en tu máquina (p. ej. en
+> `:9001`), usá **`host.docker.internal:9001`** como `target` en la UI. Ya está
+> configurado en `docker-compose.yml` (`extra_hosts: host.docker.internal:host-gateway`),
+> así que funciona también en Linux.
+
+| El servidor gRPC corre en… | `target` a usar en la UI |
+|---|---|
+| Tu **host** (fuera de Docker) | `host.docker.internal:<puerto>` |
+| Otro **contenedor** en una red Docker compartida | `<nombre-del-servicio>:<puerto>` |
+| **Remoto** / ngrok | el `host:puerto` público |
+
+Probar contra otro proyecto por una **red interna de Docker** (segundo caso) es
+configuración del lado de ese proyecto/red (unirse a la misma red y usar su nombre
+de servicio); este probador solo necesita el `target` correcto.
+
 ## Layout de `data/`
 
 ```

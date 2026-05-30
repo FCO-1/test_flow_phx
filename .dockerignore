@@ -1,0 +1,35 @@
+# Artefactos de build / deps (se regeneran dentro de la imagen)
+_build/
+deps/
+.fetch
+*.ez
+erl_crash.dump
+
+# Assets compilados y caché de digest (la imagen corre assets.deploy)
+priv/static/assets/
+priv/static/cache_manifest.json
+assets/node_modules/
+
+# Persistencia local (va por volumen en runtime, no dentro de la imagen)
+data/
+
+# Notas de trabajo (git-ignored; no entran a la imagen)
+docs/
+
+# Control de versiones y editor
+.git/
+.gitignore
+.elixir_ls/
+.vscode/
+
+# Docker y entorno local
+.env
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Misc
+cover/
+tmp/
+npm-debug.log
+test_flow_phx-*.tar
