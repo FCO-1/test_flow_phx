@@ -16,14 +16,50 @@
   </header>
 
   <div class="flex-1 flex min-h-0">
-    <%!-- ── Sidebar: colecciones gRPC ── --%>
+    <%!-- ── Sidebar: Colecciones | Variables ── --%>
     <aside class="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3 overflow-y-auto">
-      <.grpc_collections_sidebar
-        collections={@collections}
-        expanded={@expanded_collections}
-        request={@request}
-        locale={@locale}
-      />
+      <div class="flex gap-1 mb-3">
+        <button
+          type="button"
+          class={[
+            "flex-1 text-xs rounded-md px-2 py-1.5 font-medium",
+            if(@sidebar_section == :collections,
+              do: "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900",
+              else: "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            )
+          ]}
+          phx-click="sidebar_section"
+          phx-value-section="collections"
+        >
+          {Translations.t(@locale, "sidebar.collections_tab")}
+        </button>
+        <button
+          type="button"
+          class={[
+            "flex-1 text-xs rounded-md px-2 py-1.5 font-medium",
+            if(@sidebar_section == :variables,
+              do: "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900",
+              else: "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            )
+          ]}
+          phx-click="sidebar_section"
+          phx-value-section="variables"
+        >
+          {Translations.t(@locale, "sidebar.variables_tab")}
+        </button>
+      </div>
+
+      <%= case @sidebar_section do %>
+        <% :collections -> %>
+          <.grpc_collections_sidebar
+            collections={@collections}
+            expanded={@expanded_collections}
+            request={@request}
+            locale={@locale}
+          />
+        <% :variables -> %>
+          <TesterComponents.variables_sidebar vars={@globals} locale={@locale} />
+      <% end %>
     </aside>
 
     <main class="flex-1 flex flex-col xl:flex-row gap-4 p-4 min-h-0 overflow-hidden">
@@ -287,4 +323,10 @@
       </div>
     </main>
   </div>
+
+  <TesterComponents.collection_variables_modal
+    :if={@collection_vars_modal}
+    state={@collection_vars_modal}
+    locale={@locale}
+  />
 </div>

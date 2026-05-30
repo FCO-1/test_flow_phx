@@ -465,6 +465,42 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       html = render_hook(view, "import:file", %{"content" => "no es json"})
       assert html =~ "no es JSON válido"
     end
+
+    test "Import auto-expande la colección y abrir requests crea tabs nuevas",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      json =
+        ~s({"format":"testflow-grpc-collection","version":1,"collections":[{"name":"Suite","requests":[) <>
+          ~s({"name":"Req Uno","target":"h:1","method":"Echo"},) <>
+          ~s({"name":"Req Dos","target":"h:2","method":"Echo"}]}]})
+
+      # Tras importar, la colección queda desplegada: sus requests se ven sin
+      # tener que hacer click en el toggle.
+      html = render_hook(view, "import:file", %{"content" => json})
+      assert html =~ "Req Uno"
+      assert html =~ "Req Dos"
+
+      [coll] = GrpcCollections.list()
+      [r1, r2] = coll.requests
+
+      # Abrir cada request lo lleva a una TAB NUEVA (no pisa la activa): la tab
+      # sembrada + las dos abiertas = 3.
+      view
+      |> element("button[phx-click='open_grpc_request'][phx-value-request-id='#{r1.id}']")
+      |> render_click()
+
+      assert length(GrpcTabs.list()) == 2
+
+      html =
+        view
+        |> element("button[phx-click='open_grpc_request'][phx-value-request-id='#{r2.id}']")
+        |> render_click()
+
+      assert length(GrpcTabs.list()) == 3
+      # la tab activa es la del último request abierto
+      assert html =~ "h:2"
+    end
   end
 
   describe "carga de .proto" do
@@ -476,6 +512,80 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       assert html =~ "Echo"
       assert html =~ "Down (stream)"
       assert html =~ "Cargado: echo.proto"
+    end
+  end
+
+  describe "variables UI (sidebar globals + modal de colección)" do
+    setup do
+      tmp = Path.join(System.tmp_dir!(), "tf_grpc_varsui_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      # JsonFileRepo: globals (transversal). GrpcJsonFileRepo: colecciones/tabs.
+      start_supervised!(
+        {JsonFileRepo, name: JsonFileRepo, path: Path.join(tmp, "rest.json"), flush_after_ms: 10}
+      )
+
+      start_supervised!(
+        {GrpcJsonFileRepo,
+         name: GrpcJsonFileRepo, path: Path.join(tmp, "grpc.json"), flush_after_ms: 10}
+      )
+
+      :ok
+    end
+
+    test "editar un global desde la sección Variables persiste y resuelve {{var}} al enviar",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      # cambiar a la sección Variables y agregar una fila de global
+      view
+      |> element("button[phx-click='sidebar_section'][phx-value-section='variables']")
+      |> render_click()
+
+      view |> element("button[phx-click='add_global_row']") |> render_click()
+
+      # llenar la fila (update_globals)
+      view
+      |> form("form[phx-change='update_globals']", %{
+        "globals" => %{"0" => %{"name" => "host", "value" => "9.9.9.9:1", "enabled" => "true"}}
+      })
+      |> render_change()
+
+      assert [%{name: "host", value: "9.9.9.9:1", enabled: true}] = Globals.list()
+
+      # y resuelve {{host}} al enviar
+      FakeGrpcExecutor.stage(%Response{status: 0})
+      view |> form("#grpc-form", request: %{target: "{{host}}"}) |> render_submit()
+      await(view)
+
+      assert FakeGrpcExecutor.last_request().target == "9.9.9.9:1"
+    end
+
+    test "abrir el modal de vars de una colección y agregar una var la guarda",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      view |> form("form[phx-submit='new_collection']", %{name: "C"}) |> render_submit()
+      [coll] = GrpcCollections.list()
+
+      # abrir el modal de vars de esa colección
+      view
+      |> element("button[phx-click='open_collection_vars_modal'][phx-value-id='#{coll.id}']")
+      |> render_click()
+
+      # agregar una fila y llenarla
+      view |> element("button[phx-click='add_collection_var_row']") |> render_click()
+
+      view
+      |> form("form[phx-change='update_collection_vars']", %{
+        "collection_id" => coll.id,
+        "vars" => %{"0" => %{"name" => "base", "value" => "x:1", "enabled" => "true"}}
+      })
+      |> render_change()
+
+      assert [%{variables: [%{name: "base", value: "x:1", enabled: true}]}] =
+               GrpcCollections.list()
     end
   end
 end

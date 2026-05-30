@@ -61,6 +61,8 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
       |> assign(:globals, load_globals())
       |> assign(:collections, load_collections())
       |> assign(:expanded_collections, MapSet.new())
+      |> assign(:sidebar_section, :collections)
+      |> assign(:collection_vars_modal, nil)
       |> assign(:proto, nil)
       |> assign(:proto_error, nil)
       |> assign(:proto_names, [])
@@ -280,11 +282,24 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   end
 
   def handle_event("import:file", %{"content" => content}, socket) do
+    before_ids = MapSet.new(socket.assigns.collections, & &1.id)
+
     case GrpcCollectionImport.import_all(content) do
       {:ok, count} ->
+        socket = refresh_collections(socket)
+
+        # Auto-expande las colecciones recién importadas para que sus requests se
+        # vean sin un click extra (el usuario las quiere desplegadas al cargar).
+        new_ids =
+          socket.assigns.collections
+          |> Enum.map(& &1.id)
+          |> Enum.reject(&MapSet.member?(before_ids, &1))
+
         socket =
           socket
-          |> refresh_collections()
+          |> update(:expanded_collections, fn ex ->
+            Enum.reduce(new_ids, ex, &MapSet.put(&2, &1))
+          end)
           |> put_flash(:info, imported_flash(socket.assigns.locale, count))
 
         {:noreply, socket}
@@ -296,6 +311,78 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
 
   def handle_event("import:error", %{"message" => msg}, socket),
     do: {:noreply, put_flash(socket, :error, msg)}
+
+  # ---------- Sidebar: secciones (Colecciones | Variables) ----------
+
+  def handle_event("sidebar_section", %{"section" => section}, socket)
+      when section in ["collections", "variables"] do
+    {:noreply, assign(socket, :sidebar_section, String.to_existing_atom(section))}
+  end
+
+  # ---------- Globals (variables globales) ----------
+
+  def handle_event("update_globals", %{"globals" => params}, socket) do
+    vars = parse_globals_params(params)
+    try_call(fn -> Globals.replace(vars) end)
+    {:noreply, assign(socket, :globals, vars)}
+  end
+
+  def handle_event("update_globals", _params, socket), do: {:noreply, socket}
+
+  def handle_event("add_global_row", _params, socket) do
+    vars = socket.assigns.globals ++ [Variables.empty()]
+    try_call(fn -> Globals.replace(vars) end)
+    {:noreply, assign(socket, :globals, vars)}
+  end
+
+  def handle_event("remove_global_row", %{"index" => idx_str}, socket) do
+    idx = String.to_integer(idx_str)
+    vars = List.delete_at(socket.assigns.globals, idx)
+    try_call(fn -> Globals.replace(vars) end)
+    {:noreply, assign(socket, :globals, vars)}
+  end
+
+  # ---------- Variables de colección (modal) ----------
+
+  def handle_event("open_collection_vars_modal", %{"id" => id}, socket) do
+    case Enum.find(socket.assigns.collections, &(&1.id == id)) do
+      nil ->
+        {:noreply, socket}
+
+      %Collection{} = c ->
+        state = %{collection_id: c.id, collection_name: c.name, vars: c.variables}
+        {:noreply, assign(socket, :collection_vars_modal, state)}
+    end
+  end
+
+  def handle_event("close_collection_vars_modal", _params, socket),
+    do: {:noreply, assign(socket, :collection_vars_modal, nil)}
+
+  def handle_event("update_collection_vars", %{"collection_id" => coll_id} = params, socket) do
+    vars = params |> Map.get("vars", %{}) |> parse_vars_params()
+    persist_collection_vars(socket, coll_id, vars)
+  end
+
+  def handle_event("add_collection_var_row", _params, socket) do
+    case socket.assigns.collection_vars_modal do
+      nil ->
+        {:noreply, socket}
+
+      %{collection_id: coll_id, vars: vars} ->
+        persist_collection_vars(socket, coll_id, vars ++ [Variables.empty()])
+    end
+  end
+
+  def handle_event("remove_collection_var_row", %{"index" => idx_str}, socket) do
+    case socket.assigns.collection_vars_modal do
+      nil ->
+        {:noreply, socket}
+
+      %{collection_id: coll_id, vars: vars} ->
+        idx = String.to_integer(idx_str)
+        persist_collection_vars(socket, coll_id, List.delete_at(vars, idx))
+    end
+  end
 
   # Guarda el request actual en una colección. El nombre del form tiene
   # precedencia; si viene vacío cae al nombre del request en edición.
@@ -325,11 +412,12 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     end
   end
 
-  # Abre un request guardado. Si ya hay una tab para ese request (mismo id),
-  # restaura el contenido guardado en ella; si no, reemplaza la tab activa.
-  # Recarga el descriptor desde proto_paths para repoblar los dropdowns; el
-  # contenido guardado (service/method) se preserva (load_active_proto no hace
-  # preselect).
+  # Abre un request guardado en una **tab nueva** (copia con id de tab fresco,
+  # apilada al final y activada), espejo del `open_request_in_tab` de REST. Así se
+  # pueden tener varios requests de la colección abiertos a la vez y correrlos sin
+  # pisar la tab activa. La tab es una copia de trabajo; abrir el mismo request dos
+  # veces da dos tabs. Recarga el descriptor desde el proto-set/paths para repoblar
+  # los dropdowns; el contenido guardado (service/method) se preserva.
   def handle_event(
         "open_grpc_request",
         %{"collection-id" => cid, "request-id" => rid},
@@ -337,9 +425,12 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
       ) do
     case find_request(socket.assigns.collections, cid, rid) do
       %Request{} = req ->
+        tab = %{req | id: Request.new_id(), collection_id: cid}
+
         socket =
           socket
-          |> open_into_tab(req)
+          |> update(:tabs, &(&1 ++ [tab]))
+          |> assign(:active_tab_id, tab.id)
           |> TabState.put_active_view()
           |> load_active_proto()
           |> TabState.save()
@@ -530,6 +621,41 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     :exit, _ -> []
   end
 
+  defp parse_globals_params(params), do: parse_vars_params(params)
+
+  defp parse_vars_params(params) when is_map(params) do
+    params
+    |> Enum.sort_by(fn {idx_str, _} -> String.to_integer(idx_str) end)
+    |> Enum.map(fn {_idx, row} ->
+      %{
+        name: Map.get(row, "name", ""),
+        value: Map.get(row, "value", ""),
+        enabled: Map.get(row, "enabled", "false") in ["true", true, "on"]
+      }
+    end)
+  end
+
+  defp parse_vars_params(_), do: []
+
+  # Persiste las vars de una colección y refresca el modal (si sigue abierto sobre
+  # esa colección) + el listado de colecciones.
+  defp persist_collection_vars(socket, coll_id, vars) do
+    try_call(fn -> GrpcCollections.set_variables(coll_id, vars) end)
+
+    modal_state =
+      case socket.assigns.collection_vars_modal do
+        %{collection_id: ^coll_id} = state -> %{state | vars: vars}
+        other -> other
+      end
+
+    socket =
+      socket
+      |> assign(:collection_vars_modal, modal_state)
+      |> refresh_collections()
+
+    {:noreply, socket}
+  end
+
   # ---------- Helpers de colecciones ----------
 
   defp load_collections do
@@ -585,28 +711,6 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   end
 
   # ---------- Helpers de tabs ----------
-
-  # Carga `req` en una tab: si ya existe una tab con su id, restaura su
-  # contenido (limpiando runtime); si no, reemplaza la tab activa en sitio
-  # (la tab toma el id del request). Activa la tab resultante.
-  defp open_into_tab(socket, %Request{} = req) do
-    if Enum.any?(socket.assigns.tabs, &(&1.id == req.id)) do
-      tabs = Enum.map(socket.assigns.tabs, fn t -> if t.id == req.id, do: req, else: t end)
-
-      socket
-      |> assign(:tabs, tabs)
-      |> assign(:active_tab_id, req.id)
-      |> TabState.clear_runtime(req.id)
-    else
-      old_id = socket.assigns.active_tab_id
-      tabs = Enum.map(socket.assigns.tabs, fn t -> if t.id == old_id, do: req, else: t end)
-
-      socket
-      |> assign(:tabs, tabs)
-      |> assign(:active_tab_id, req.id)
-      |> TabState.clear_runtime(old_id)
-    end
-  end
 
   # Mata el Task en vuelo de `tab_id` si lo hay (al cerrar la tab).
   defp kill_task(socket, tab_id) do
@@ -899,6 +1003,22 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
               class="text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 px-1 invisible group-hover:visible text-xs"
             >
               ↓
+            </button>
+            <button
+              type="button"
+              phx-click="open_collection_vars_modal"
+              phx-value-id={c.id}
+              aria-label="Variables de colección"
+              title={"Variables (#{length(c.variables)})"}
+              class={[
+                "px-1 invisible group-hover:visible text-xs",
+                if(c.variables != [],
+                  do: "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800",
+                  else: "text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100"
+                )
+              ]}
+            >
+              {"{x}"}
             </button>
             <button
               type="button"
