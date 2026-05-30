@@ -10,14 +10,19 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcSerializer do
   RPC lo dicta el descriptor, no el struct — así que load/dump es directo.
   """
 
-  alias TestFlowPhx.Domain.Grpc.{Collection, Request}
+  alias TestFlowPhx.Domain.Grpc.{Collection, HistoryEntry, Request}
 
   # ----- dump (struct → map) -----
 
-  def dump_document(%{collections: collections, tabs: tabs, active_tab_id: active_tab_id}) do
+  def dump_document(%{
+        collections: collections,
+        tabs: tabs,
+        active_tab_id: active_tab_id
+      } = doc) do
     %{
       "version" => 1,
       "collections" => Enum.map(collections, &dump_collection/1),
+      "history" => doc |> Map.get(:history, []) |> Enum.map(&dump_history/1),
       "tabs" => Enum.map(tabs, &dump_request/1),
       "active_tab_id" => active_tab_id
     }
@@ -69,13 +74,14 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcSerializer do
   def load_document(map) when is_map(map) do
     %{
       collections: map |> Map.get("collections", []) |> Enum.map(&load_collection/1),
+      history: map |> Map.get("history", []) |> Enum.map(&load_history/1),
       tabs: map |> Map.get("tabs", []) |> Enum.map(&load_request/1),
       active_tab_id: Map.get(map, "active_tab_id")
     }
   end
 
   def empty_document do
-    %{collections: [], tabs: [], active_tab_id: nil}
+    %{collections: [], history: [], tabs: [], active_tab_id: nil}
   end
 
   def load_request(map) when is_map(map) do
@@ -130,4 +136,75 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcSerializer do
 
   defp load_string_list(list) when is_list(list), do: Enum.filter(list, &is_binary/1)
   defp load_string_list(_), do: []
+
+  # ----- history (struct ↔ map) -----
+
+  def dump_history(%HistoryEntry{} = h) do
+    %{
+      "id" => h.id,
+      "ran_at" => h.ran_at && DateTime.to_iso8601(h.ran_at),
+      "request" => h.request && dump_request(h.request),
+      "response_status" => h.response_status,
+      "response_message" => h.response_message,
+      "streaming?" => h.streaming?,
+      "message_count" => h.message_count,
+      "response_duration_ms" => h.response_duration_ms,
+      "response_error" => dump_error(h.response_error),
+      "result_file" => h.result_file
+    }
+  end
+
+  def load_history(map) when is_map(map) do
+    %HistoryEntry{
+      id: map["id"],
+      ran_at: parse_datetime(map["ran_at"]),
+      request: map["request"] && load_request(map["request"]),
+      response_status: map["response_status"],
+      response_message: map["response_message"],
+      streaming?: Map.get(map, "streaming?", false),
+      message_count: map["message_count"] || 0,
+      response_duration_ms: map["response_duration_ms"] || 0,
+      response_error: load_error(map["response_error"]),
+      result_file: map["result_file"]
+    }
+  end
+
+  defp dump_error(nil), do: nil
+
+  defp dump_error(err) when is_map(err) do
+    %{
+      "type" => err |> Map.get(:type) |> to_string_or_nil(),
+      "message" => Map.get(err, :message, ""),
+      "code" => Map.get(err, :code)
+    }
+  end
+
+  defp load_error(nil), do: nil
+
+  defp load_error(map) when is_map(map) do
+    %{
+      type: parse_atom(map["type"]),
+      message: map["message"] || "",
+      code: map["code"]
+    }
+  end
+
+  defp to_string_or_nil(nil), do: nil
+  defp to_string_or_nil(a) when is_atom(a), do: Atom.to_string(a)
+  defp to_string_or_nil(s) when is_binary(s), do: s
+
+  # Los tipos de error gRPC son un set conocido y acotado; convertir por
+  # existencia evita inflar la tabla de átomos desde datos en disco.
+  @error_types ~w(proto_load invalid_json invalid_request transport grpc unknown)
+  defp parse_atom(s) when is_binary(s) and s in @error_types, do: String.to_existing_atom(s)
+  defp parse_atom(_), do: :unknown
+
+  defp parse_datetime(nil), do: nil
+
+  defp parse_datetime(iso) when is_binary(iso) do
+    case DateTime.from_iso8601(iso) do
+      {:ok, dt, _offset} -> dt
+      _ -> nil
+    end
+  end
 end

@@ -1,7 +1,7 @@
 defmodule TestFlowPhx.Infrastructure.Storage.GrpcSerializerTest do
   use ExUnit.Case, async: true
 
-  alias TestFlowPhx.Domain.Grpc.{Collection, Request}
+  alias TestFlowPhx.Domain.Grpc.{Collection, HistoryEntry, Request}
   alias TestFlowPhx.Infrastructure.Storage.GrpcSerializer
 
   defp sample_request do
@@ -15,6 +15,21 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcSerializerTest do
       metadata: [%{key: "x-token", value: "abc", enabled: true}],
       body_text: ~s({"msg":"hi"}),
       collection_id: "c1"
+    }
+  end
+
+  defp sample_history do
+    %HistoryEntry{
+      id: "h1",
+      ran_at: ~U[2026-05-30 12:00:00.000000Z],
+      request: sample_request(),
+      response_status: 0,
+      response_message: nil,
+      streaming?: false,
+      message_count: 0,
+      response_duration_ms: 42,
+      response_error: nil,
+      result_file: "data/grpc/2026-05-30/123.json"
     }
   end
 
@@ -68,9 +83,10 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcSerializerTest do
   end
 
   describe "document round-trip" do
-    test "dump then load preserves collections, tabs and active_tab_id" do
+    test "dump then load preserves collections, history, tabs and active_tab_id" do
       doc = %{
         collections: [%Collection{id: "c1", name: "C", requests: [], variables: []}],
+        history: [sample_history()],
         tabs: [sample_request()],
         active_tab_id: "r1"
       }
@@ -87,11 +103,44 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcSerializerTest do
     test "empty_document for nil / empty map" do
       assert GrpcSerializer.load_document(nil) == GrpcSerializer.empty_document()
       assert GrpcSerializer.load_document(%{}) == GrpcSerializer.empty_document()
-      assert GrpcSerializer.empty_document() == %{collections: [], tabs: [], active_tab_id: nil}
+
+      assert GrpcSerializer.empty_document() == %{
+               collections: [],
+               history: [],
+               tabs: [],
+               active_tab_id: nil
+             }
+    end
+
+    test "load_document es back-compat con un doc sin la llave history" do
+      legacy = %{"version" => 1, "collections" => [], "tabs" => [], "active_tab_id" => nil}
+      assert %{history: []} = GrpcSerializer.load_document(legacy)
     end
 
     test "dump_document stamps a version" do
       assert %{"version" => 1} = GrpcSerializer.dump_document(GrpcSerializer.empty_document())
+    end
+  end
+
+  describe "history round-trip" do
+    test "preserva un entry de error + streaming (status, message, error, counts)" do
+      entry = %HistoryEntry{
+        sample_history()
+        | response_status: 16,
+          response_message: "CREDENCIALES_INVALIDAS: Credenciales invalidas.",
+          streaming?: true,
+          message_count: 3,
+          response_error: %{type: :grpc, message: "boom", code: 16}
+      }
+
+      [loaded] =
+        %{collections: [], history: [entry], tabs: [], active_tab_id: nil}
+        |> GrpcSerializer.dump_document()
+        |> json_round_trip()
+        |> GrpcSerializer.load_document()
+        |> Map.fetch!(:history)
+
+      assert loaded == entry
     end
   end
 

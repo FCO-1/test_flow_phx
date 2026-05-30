@@ -25,11 +25,12 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepo do
 
   @behaviour TestFlowPhx.Domain.Ports.GrpcCollectionRepo
 
-  alias TestFlowPhx.Domain.Grpc.{Collection, Request}
+  alias TestFlowPhx.Domain.Grpc.{Collection, HistoryEntry, Request}
   alias TestFlowPhx.Infrastructure.Storage.{GrpcSerializer, Paths}
 
   @default_topic "grpc_storage"
   @default_flush_after_ms 500
+  @default_history_cap 100
 
   # ----- Behaviour delegations -----
 
@@ -66,6 +67,17 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepo do
   def set_tabs(tabs, active_id) when is_list(tabs),
     do: GenServer.call(__MODULE__, {:set_tabs, tabs, active_id})
 
+  # ----- History (extensión propia del repo gRPC; fuera del behaviour
+  # GrpcCollectionRepo, que cubre solo colecciones + tabs) -----
+
+  def list_history(limit \\ 50) when is_integer(limit) and limit > 0,
+    do: GenServer.call(__MODULE__, {:list_history, limit})
+
+  def append_history(%HistoryEntry{} = h),
+    do: GenServer.call(__MODULE__, {:append_history, h})
+
+  def clear_history, do: GenServer.call(__MODULE__, :clear_history)
+
   @impl true
   def subscribe do
     topic = call_config(:grpc_topic, @default_topic)
@@ -86,6 +98,7 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepo do
     pubsub = Keyword.get(opts, :pubsub, TestFlowPhx.PubSub)
     topic = Keyword.get(opts, :topic, @default_topic)
     flush_after_ms = Keyword.get(opts, :flush_after_ms, @default_flush_after_ms)
+    history_cap = Keyword.get(opts, :history_cap, @default_history_cap)
 
     Process.flag(:trap_exit, true)
 
@@ -98,8 +111,10 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepo do
       pubsub: pubsub,
       topic: topic,
       flush_after_ms: flush_after_ms,
+      history_cap: history_cap,
       flush_pending?: false,
       collections: document.collections,
+      history: document.history,
       tabs: document.tabs,
       active_tab_id: document.active_tab_id
     }
@@ -176,6 +191,22 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepo do
     {:reply, :ok, state}
   end
 
+  # ----- History -----
+
+  def handle_call({:list_history, limit}, _from, state),
+    do: {:reply, Enum.take(state.history, limit), state}
+
+  def handle_call({:append_history, %HistoryEntry{} = h}, _from, state) do
+    new_history = [ensure_id(h) | state.history] |> Enum.take(state.history_cap)
+    state = %{state | history: new_history} |> mark_dirty()
+    {:reply, :ok, state}
+  end
+
+  def handle_call(:clear_history, _from, state) do
+    state = %{state | history: []} |> mark_dirty()
+    {:reply, :ok, state}
+  end
+
   # ----- Flush -----
 
   @impl true
@@ -213,6 +244,7 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepo do
     payload =
       GrpcSerializer.dump_document(%{
         collections: state.collections,
+        history: state.history,
         tabs: state.tabs,
         active_tab_id: state.active_tab_id
       })

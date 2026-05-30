@@ -1,7 +1,7 @@
 defmodule TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepoTest do
   use ExUnit.Case, async: false
 
-  alias TestFlowPhx.Domain.Grpc.{Collection, Request}
+  alias TestFlowPhx.Domain.Grpc.{Collection, HistoryEntry, Request}
   alias TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepo, as: Repo
 
   setup do
@@ -69,10 +69,41 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepoTest do
     end
   end
 
+  describe "history" do
+    test "append asigna id si falta, lista en orden más-reciente-primero" do
+      :ok = Repo.append_history(%HistoryEntry{request: %Request{method: "Registrar"}})
+      :ok = Repo.append_history(%HistoryEntry{id: "h2", request: %Request{method: "IniciarSesion"}})
+
+      [first, second] = Repo.list_history()
+      assert first.id == "h2"
+      assert is_binary(second.id) and second.id != ""
+      assert first.request.method == "IniciarSesion"
+    end
+
+    test "clear vacía el historial" do
+      :ok = Repo.append_history(%HistoryEntry{id: "h1"})
+      assert [_] = Repo.list_history()
+      :ok = Repo.clear_history()
+      assert [] = Repo.list_history()
+    end
+
+    test "respeta el history_cap (más reciente primero)" do
+      stop_supervised!(Repo)
+      tmp = Path.join(System.tmp_dir!(), "tf_grpc_cap_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+      on_exit(fn -> File.rm_rf!(tmp) end)
+      start_supervised!({Repo, name: Repo, path: Path.join(tmp, "s.json"), history_cap: 2})
+
+      for i <- 1..4, do: Repo.append_history(%HistoryEntry{id: "h#{i}"})
+      assert ["h4", "h3"] = Repo.list_history() |> Enum.map(& &1.id)
+    end
+  end
+
   describe "persistence" do
     test "flushes to disk and reloads on restart", %{path: path} do
       :ok = Repo.upsert_collection(%Collection{id: "c1", name: "Persisted"})
       :ok = Repo.set_tabs([%Request{id: "r1", name: "tab"}], "r1")
+      :ok = Repo.append_history(%HistoryEntry{id: "h1", request: %Request{method: "Echo"}})
 
       # Espera el flush debounced y verifica el archivo en disco.
       Process.sleep(40)
@@ -84,6 +115,7 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcJsonFileRepoTest do
       assert [%Collection{id: "c1", name: "Persisted"}] = Repo.list_collections()
       assert [%Request{id: "r1"}] = Repo.list_tabs()
       assert Repo.active_tab_id() == "r1"
+      assert [%HistoryEntry{id: "h1"}] = Repo.list_history()
     end
   end
 end
