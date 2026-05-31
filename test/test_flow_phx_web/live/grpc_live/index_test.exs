@@ -3,11 +3,11 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
 
   import Phoenix.LiveViewTest
 
-  alias TestFlowPhx.Domain.Grpc.Response
+  alias TestFlowPhx.Domain.Grpc.{Request, Response}
   alias TestFlowPhx.Infrastructure.Storage.{GrpcJsonFileRepo, JsonFileRepo, Paths}
   alias TestFlowPhx.Support.FakeGrpcExecutor
   alias TestFlowPhx.UseCases.Globals
-  alias TestFlowPhx.UseCases.Grpc.{GrpcCollections, GrpcTabs, ProtoLoader}
+  alias TestFlowPhx.UseCases.Grpc.{GrpcCollections, GrpcHistory, GrpcTabs, ProtoLoader}
 
   @proto """
   syntax = "proto3";
@@ -55,6 +55,42 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       assert html =~ "REST"
       assert html =~ "cargá un .proto"
       assert html =~ "Sin respuesta todavía."
+    end
+  end
+
+  describe "historial" do
+    setup do
+      # El repo gRPC (colecciones/tabs/historial) no corre global en test:
+      # lo arrancamos aislado en un dir temporal, enlazado a este test.
+      tmp = Path.join(System.tmp_dir!(), "grpc_hist_lv_#{System.unique_integer([:positive])}")
+
+      start_supervised!(
+        {GrpcJsonFileRepo, name: GrpcJsonFileRepo, path: Path.join(tmp, "state.json")}
+      )
+
+      on_exit(fn -> File.rm_rf!(tmp) end)
+      :ok
+    end
+
+    test "lista envíos previos, reabre como tab y limpia", %{conn: conn} do
+      # Registra una entrada ANTES del mount para que `load_history` la tome.
+      GrpcHistory.record(
+        %Request{name: "r", target: "h:1", service: "demo.Svc", method: "Echo"},
+        %Response{status: 0, body_decoded: %{"ok" => true}, duration_ms: 7}
+      )
+
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      # La sección historial lista la entrada (service/method).
+      html = view |> element("button[phx-value-section='history']") |> render_click()
+      assert html =~ "demo.Svc/Echo"
+
+      # Reabrir como tab nueva no rompe el render.
+      view |> element("button[phx-click='open_history_entry']") |> render_click()
+
+      # Limpiar vacía el historial.
+      html = view |> element("button[phx-click='clear_history']") |> render_click()
+      refute html =~ "demo.Svc/Echo"
     end
   end
 

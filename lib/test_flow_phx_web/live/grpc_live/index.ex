@@ -321,6 +321,36 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     {:noreply, assign(socket, :sidebar_section, String.to_existing_atom(section))}
   end
 
+  # ---------- Historial ----------
+
+  # Reabre una entrada de historial como **tab nueva** (copia del request con id
+  # de tab fresco), igual que `open_grpc_request`. La respuesta histórica no se
+  # restaura: el usuario reenvía si quiere correrla de nuevo.
+  def handle_event("open_history_entry", %{"id" => id}, socket) do
+    case Enum.find(socket.assigns.history, &(&1.id == id)) do
+      %{request: %Request{} = req} ->
+        tab = %{req | id: Request.new_id()}
+
+        socket =
+          socket
+          |> update(:tabs, &(&1 ++ [tab]))
+          |> assign(:active_tab_id, tab.id)
+          |> TabState.put_active_view()
+          |> load_active_proto()
+          |> TabState.save()
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("clear_history", _params, socket) do
+    GrpcHistory.clear()
+    {:noreply, assign(socket, :history, [])}
+  end
+
   # ---------- Globals (variables globales) ----------
 
   def handle_event("update_globals", %{"globals" => params}, socket) do
