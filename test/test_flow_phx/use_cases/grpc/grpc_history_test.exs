@@ -8,7 +8,14 @@ defmodule TestFlowPhx.UseCases.Grpc.GrpcHistoryTest do
   setup do
     tmp = Path.join(System.tmp_dir!(), "tf_grpc_hist_#{System.unique_integer([:positive])}")
     File.mkdir_p!(tmp)
-    on_exit(fn -> File.rm_rf!(tmp) end)
+    # Los result files se escriben en `data_dir/grpc/<fecha>/...`; apuntalo al tmp
+    # para no contaminar ./data y poder releerlos.
+    Application.put_env(:test_flow_phx, :data_dir_override, tmp)
+
+    on_exit(fn ->
+      Application.delete_env(:test_flow_phx, :data_dir_override)
+      File.rm_rf!(tmp)
+    end)
 
     start_supervised!({Repo, name: Repo, path: Path.join(tmp, "state.json"), flush_after_ms: 10})
     :ok
@@ -30,6 +37,10 @@ defmodule TestFlowPhx.UseCases.Grpc.GrpcHistoryTest do
 
     assert [listed] = GrpcHistory.list()
     assert listed.id == entry.id
+
+    # to_response reconstruye el resultado visible (cuerpo releído del archivo).
+    assert %Response{status: 0, streaming?: false, body_decoded: %{"reply" => "hola"}, messages: []} =
+             GrpcHistory.to_response(entry)
   end
 
   test "record (error) no escribe body y guarda el error" do
@@ -40,6 +51,12 @@ defmodule TestFlowPhx.UseCases.Grpc.GrpcHistoryTest do
     assert entry.result_file == nil
     assert entry.response_status == 16
     assert entry.response_error == %{type: :grpc, message: "bad", code: 16}
+
+    # to_response: sin cuerpo, pero conserva status y error para re-visualizar.
+    resp_back = GrpcHistory.to_response(entry)
+    assert resp_back.status == 16
+    assert resp_back.body_decoded == nil
+    assert resp_back.error == %{type: :grpc, message: "bad", code: 16}
   end
 
   test "record (streaming) guarda los mensajes y el conteo" do
@@ -49,6 +66,11 @@ defmodule TestFlowPhx.UseCases.Grpc.GrpcHistoryTest do
 
     assert entry.streaming? and entry.message_count == 2
     assert entry.result_file |> File.read!() |> Jason.decode!() == [%{"n" => 1}, %{"n" => 2}]
+
+    # to_response: streaming releído como lista de mensajes, body_decoded nil.
+    resp_back = GrpcHistory.to_response(entry)
+    assert resp_back.streaming? and resp_back.body_decoded == nil
+    assert resp_back.messages == [%{"n" => 1}, %{"n" => 2}]
   end
 
   test "list (más reciente primero) y clear" do

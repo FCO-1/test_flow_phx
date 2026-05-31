@@ -35,7 +35,40 @@ defmodule TestFlowPhx.UseCases.Grpc.GrpcHistory do
     entry
   end
 
+  @doc """
+  Reconstruye el `Response` que se vio al ejecutar, a partir de un `HistoryEntry`:
+  status/message/error/duración salen del propio entry; el cuerpo (unary) o los
+  mensajes (streaming) se releen del `result_file`. Si el archivo no existe o no
+  parsea (entry viejo, error sin cuerpo) devuelve solo el resumen.
+  """
+  @spec to_response(HistoryEntry.t()) :: Response.t()
+  def to_response(%HistoryEntry{} = e) do
+    {body_decoded, messages} = read_body(e)
+
+    %Response{
+      status: e.response_status,
+      message: e.response_message,
+      streaming?: e.streaming?,
+      body_decoded: body_decoded,
+      messages: messages,
+      duration_ms: e.response_duration_ms,
+      error: e.response_error
+    }
+  end
+
   # ----- internos -----
+
+  # En streaming el archivo es la lista de mensajes; en unary el cuerpo decodificado.
+  defp read_body(%HistoryEntry{result_file: nil}), do: {nil, []}
+
+  defp read_body(%HistoryEntry{result_file: path, streaming?: streaming?}) do
+    with {:ok, json} <- File.read(path),
+         {:ok, decoded} <- Jason.decode(json) do
+      if streaming?, do: {nil, List.wrap(decoded)}, else: {decoded, []}
+    else
+      _ -> {nil, []}
+    end
+  end
 
   defp build_entry(%Request{} = request, %Response{} = r, result_file) do
     %HistoryEntry{

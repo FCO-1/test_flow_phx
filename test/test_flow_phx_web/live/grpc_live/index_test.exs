@@ -68,7 +68,15 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
         {GrpcJsonFileRepo, name: GrpcJsonFileRepo, path: Path.join(tmp, "state.json")}
       )
 
-      on_exit(fn -> File.rm_rf!(tmp) end)
+      # El cuerpo de cada Send se persiste a `data_dir/grpc/<fecha>/...`; apuntá
+      # ese dir al tmp para que el test sea hermético (y para releer el result_file).
+      Application.put_env(:test_flow_phx, :data_dir_override, tmp)
+
+      on_exit(fn ->
+        Application.delete_env(:test_flow_phx, :data_dir_override)
+        File.rm_rf!(tmp)
+      end)
+
       :ok
     end
 
@@ -84,13 +92,20 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       # La sección historial lista la entrada (service/method).
       html = view |> element("button[phx-value-section='history']") |> render_click()
       assert html =~ "demo.Svc/Echo"
+      # Regresión: el botón "limpiar" usa una clave i18n existente, no la cruda.
+      refute html =~ "history_clear"
 
-      # Reabrir como tab nueva no rompe el render.
-      view |> element("button[phx-click='open_history_entry']") |> render_click()
+      # Reabrir como tab nueva restaura el RESULTADO capturado (status + cuerpo),
+      # no solo el request.
+      html = view |> element("button[phx-click='open_history_entry']") |> render_click()
+      assert html =~ "grpc-status 0"
+      assert html =~ "&quot;ok&quot;"
 
       # Limpiar vacía el historial.
       html = view |> element("button[phx-click='clear_history']") |> render_click()
       refute html =~ "demo.Svc/Echo"
+      # Regresión: el estado vacío no debe filtrar la clave i18n cruda.
+      refute html =~ "history_empty"
     end
   end
 

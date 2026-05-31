@@ -2,6 +2,8 @@
   "sidebar": {
     "collections_tab": "Colecciones",
     "history_tab": "Historial",
+    "history_empty": "Sin historial todavía.",
+    "history_clear": "Limpiar historial",
     "variables_tab": "Variables",
     "saved": "Guardadas",
     "recent": "Reciente",

@@ -24,7 +24,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
 
   use TestFlowPhxWeb, :live_view
 
-  alias TestFlowPhx.Domain.Grpc.{Collection, Request, Response}
+  alias TestFlowPhx.Domain.Grpc.{Collection, HistoryEntry, Request, Response}
   alias TestFlowPhx.UseCases.{Globals, Settings, Translations, Variables}
 
   alias TestFlowPhx.Domain.Grpc.ProtoSet
@@ -324,15 +324,18 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   # ---------- Historial ----------
 
   # Reabre una entrada de historial como **tab nueva** (copia del request con id
-  # de tab fresco), igual que `open_grpc_request`. La respuesta histórica no se
-  # restaura: el usuario reenvía si quiere correrla de nuevo.
+  # de tab fresco), igual que `open_grpc_request`, y restaura el resultado que se
+  # capturó al ejecutar (status/cuerpo/error) vía `GrpcHistory.to_response/1`.
   def handle_event("open_history_entry", %{"id" => id}, socket) do
     case Enum.find(socket.assigns.history, &(&1.id == id)) do
-      %{request: %Request{} = req} ->
+      %HistoryEntry{request: %Request{} = req} = entry ->
         tab = %{req | id: Request.new_id()}
 
         socket =
           socket
+          # Restaura el resultado capturado al ejecutar (status/cuerpo/error),
+          # no solo el request: la tab reabierta muestra lo que respondió.
+          |> update(:responses, &Map.put(&1, tab.id, GrpcHistory.to_response(entry)))
           |> update(:tabs, &(&1 ++ [tab]))
           |> assign(:active_tab_id, tab.id)
           |> TabState.put_active_view()
