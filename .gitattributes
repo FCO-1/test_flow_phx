@@ -1,0 +1,17 @@
+# Normalizar fin de línea: LF en el repo y en el working tree para código/config.
+# Corta el churn y los warnings "LF will be replaced by CRLF" en cada git add/diff.
+* text=auto eol=lf
+
+# Fuentes Elixir/Phoenix y configs de texto: siempre LF.
+*.ex   text eol=lf
+*.exs  text eol=lf
+*.heex text eol=lf
+*.eex  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+# Scripts batch de Windows: requieren CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf

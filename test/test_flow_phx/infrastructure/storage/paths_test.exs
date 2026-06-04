@@ -15,8 +15,17 @@ defmodule TestFlowPhx.Infrastructure.Storage.PathsTest do
     end
 
     test "falls back to <cwd>/data when env var is absent" do
+      # Restaurar la env var al salir: test_helper.exs la fija como red de
+      # seguridad global (ningún test escribe en ./data real). Borrarla sin
+      # restaurar dejaría a los tests posteriores escribiendo en ./data.
+      prev = System.get_env("TEST_FLOW_DATA_DIR")
       System.delete_env("TEST_FLOW_DATA_DIR")
-      assert Paths.data_dir() == Path.join(File.cwd!(), "data")
+
+      try do
+        assert Paths.data_dir() == Path.join(File.cwd!(), "data")
+      after
+        if prev, do: System.put_env("TEST_FLOW_DATA_DIR", prev)
+      end
     end
   end
 
