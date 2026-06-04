@@ -1,0 +1,391 @@
+<div class="flex flex-col h-screen w-screen dark:text-zinc-100 dark:bg-zinc-950">
+  <div id="grpc-file-download-anchor" phx-hook="FileDownload" class="hidden"></div>
+  <header class="shrink-0 flex items-center gap-4 border-b border-zinc-200 dark:border-zinc-800 px-4 py-2">
+    <h1 class="font-semibold">TestFlow</h1>
+    <nav class="flex gap-1 text-sm">
+      <.link
+        navigate={~p"/"}
+        class="px-3 py-1 rounded-md text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      >
+        {Translations.t(@locale, "grpc.nav_rest")}
+      </.link>
+      <span class="px-3 py-1 rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium">
+        {Translations.t(@locale, "grpc.nav_grpc")}
+      </span>
+    </nav>
+  </header>
+
+  <div class="flex-1 flex min-h-0">
+    <%!-- ── Sidebar: Colecciones | Variables ── --%>
+    <aside class="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3 overflow-y-auto">
+      <div class="flex gap-1 mb-3">
+        <button
+          type="button"
+          class={[
+            "flex-1 text-xs rounded-md px-2 py-1.5 font-medium",
+            if(@sidebar_section == :collections,
+              do: "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900",
+              else: "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            )
+          ]}
+          phx-click="sidebar_section"
+          phx-value-section="collections"
+        >
+          {Translations.t(@locale, "sidebar.collections_tab")}
+        </button>
+        <button
+          type="button"
+          class={[
+            "flex-1 text-xs rounded-md px-2 py-1.5 font-medium",
+            if(@sidebar_section == :history,
+              do: "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900",
+              else: "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            )
+          ]}
+          phx-click="sidebar_section"
+          phx-value-section="history"
+        >
+          {Translations.t(@locale, "sidebar.history_tab")}
+        </button>
+        <button
+          type="button"
+          class={[
+            "flex-1 text-xs rounded-md px-2 py-1.5 font-medium",
+            if(@sidebar_section == :variables,
+              do: "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900",
+              else: "text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            )
+          ]}
+          phx-click="sidebar_section"
+          phx-value-section="variables"
+        >
+          {Translations.t(@locale, "sidebar.variables_tab")}
+        </button>
+      </div>
+
+      <%= case @sidebar_section do %>
+        <% :collections -> %>
+          <.grpc_collections_sidebar
+            collections={@collections}
+            expanded={@expanded_collections}
+            request={@request}
+            tab_count={length(@tabs)}
+            locale={@locale}
+          />
+        <% :history -> %>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between px-1">
+              <h3 class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                {Translations.t(@locale, "sidebar.history_tab")}
+              </h3>
+              <button
+                :if={@history != []}
+                type="button"
+                phx-click="clear_history"
+                data-confirm={Translations.t(@locale, "sidebar.history_clear")}
+                class="text-xs text-zinc-400 dark:text-zinc-500 hover:text-red-600"
+              >
+                {Translations.t(@locale, "sidebar.history_clear")}
+              </button>
+            </div>
+
+            <p
+              :if={@history == []}
+              class="text-xs text-zinc-400 dark:text-zinc-500 px-1 py-2 italic"
+            >
+              {Translations.t(@locale, "sidebar.history_empty")}
+            </p>
+
+            <ul class="space-y-0.5">
+              <li :for={h <- Enum.map(@history, &Format.history_entry/1)} class="group">
+                <button
+                  type="button"
+                  phx-click="open_history_entry"
+                  phx-value-id={h.id}
+                  class="w-full text-left rounded px-1 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 flex flex-col gap-0.5"
+                >
+                  <div class="flex items-center gap-2 text-xs">
+                    <span class="font-mono font-semibold">{h.method}</span>
+                    <span class="text-zinc-700 dark:text-zinc-300 truncate">{h.label}</span>
+                    <span :if={h.meta} class="text-zinc-400 dark:text-zinc-500 ml-auto shrink-0">
+                      {h.meta}
+                    </span>
+                  </div>
+                  <div class="text-[10px] text-zinc-400 dark:text-zinc-500 truncate">{h.status}</div>
+                </button>
+              </li>
+            </ul>
+          </div>
+        <% :variables -> %>
+          <TesterComponents.variables_sidebar vars={@globals} locale={@locale} />
+      <% end %>
+    </aside>
+
+    <main class="flex-1 flex flex-col xl:flex-row gap-4 p-4 min-h-0 overflow-hidden">
+      <%!-- ── Panel izquierdo: builder ── --%>
+      <div class="xl:w-1/2 xl:min-w-0 flex flex-col gap-4 overflow-y-auto">
+        <.grpc_tab_bar
+          tabs={@tabs}
+          active_id={@active_tab_id}
+          in_flight_tabs={@in_flight_tabs}
+          locale={@locale}
+        />
+
+        <%!-- Carga de .proto --%>
+        <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+          <h2 class="text-sm font-semibold mb-2">
+            {Translations.t(@locale, "grpc.proto_section")}
+          </h2>
+          <form
+            id="proto-form"
+            phx-submit="load_protos"
+            phx-change="validate_upload"
+            class="flex items-center gap-2 flex-wrap"
+          >
+            <.live_file_input upload={@uploads.protos} class="text-sm" />
+            <button
+              type="submit"
+              class="px-3 py-1.5 rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-sm font-medium hover:opacity-90"
+            >
+              {Translations.t(@locale, "grpc.load_button")}
+            </button>
+            <span class="text-xs text-zinc-400 dark:text-zinc-500">
+              {Translations.t(@locale, "grpc.proto_upload_hint")}
+            </span>
+          </form>
+
+          <%!-- Selector de proto-set ya subido + archivo entry (si hay >1) --%>
+          <div :if={@proto_sets != []} class="flex items-end gap-2 mt-2 flex-wrap">
+            <form phx-change="select_proto_set">
+              <label class="text-xs text-zinc-500 flex flex-col gap-1">
+                {Translations.t(@locale, "grpc.proto_set")}
+                <select
+                  name="proto_set_id"
+                  class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800"
+                >
+                  <option value="">{Translations.t(@locale, "grpc.proto_set_none")}</option>
+                  <option
+                    :for={s <- @proto_sets}
+                    value={s.id}
+                    selected={s.id == @request.proto_set_id}
+                  >
+                    {s.name}
+                  </option>
+                </select>
+              </label>
+            </form>
+
+            <% active_set = Enum.find(@proto_sets, &(&1.id == @request.proto_set_id)) %>
+            <form :if={active_set && length(active_set.entry_files) > 1} phx-change="select_entry_file">
+              <label class="text-xs text-zinc-500 flex flex-col gap-1">
+                {Translations.t(@locale, "grpc.entry_file")}
+                <select
+                  name="entry_file"
+                  class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 font-mono"
+                >
+                  <option
+                    :for={f <- active_set.entry_files}
+                    value={f}
+                    selected={f == @request.entry_file}
+                  >
+                    {f}
+                  </option>
+                </select>
+              </label>
+            </form>
+          </div>
+
+          <div :for={entry <- @uploads.protos.entries} class="text-xs text-zinc-500 mt-1">
+            {entry.client_name}
+            <span :for={err <- upload_errors(@uploads.protos, entry)} class="text-red-600">
+              — {Format.upload_error(@locale, err)}
+            </span>
+          </div>
+
+          <p :if={@proto_names != []} class="text-xs text-emerald-600 dark:text-emerald-400 mt-2">
+            {Translations.t(@locale, "grpc.loaded_prefix")} {Enum.join(@proto_names, ", ")}
+          </p>
+          <p :if={@proto_error} class="text-xs text-red-600 mt-2 whitespace-pre-wrap font-mono">
+            {@proto_error}
+          </p>
+        </section>
+
+        <form id="grpc-form" phx-change="validate" phx-submit="send" class="flex flex-col gap-4">
+          <%!-- target + send --%>
+          <div class="flex gap-2">
+            <input
+              type="text"
+              name="request[target]"
+              value={@request.target}
+              placeholder="host:port"
+              phx-debounce="200"
+              class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800"
+            />
+            <button
+              :if={not (@in_flight? and @streaming?)}
+              type="submit"
+              disabled={@in_flight? or is_nil(@proto)}
+              class="px-5 py-2 rounded-md bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {if @in_flight?,
+                do: Translations.t(@locale, "grpc.sending"),
+                else: Translations.t(@locale, "grpc.send")}
+            </button>
+            <button
+              :if={@in_flight? and @streaming?}
+              type="button"
+              phx-click="cancel"
+              class="px-5 py-2 rounded-md bg-red-600 text-white text-sm font-medium hover:bg-red-700"
+            >
+              {Translations.t(@locale, "grpc.cancel")}
+            </button>
+          </div>
+
+          <%!-- service + method --%>
+          <div class="grid grid-cols-2 gap-2">
+            <label class="text-xs text-zinc-500 flex flex-col gap-1">
+              {Translations.t(@locale, "grpc.service")}
+              <select
+                name="request[service]"
+                disabled={is_nil(@proto)}
+                class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 disabled:opacity-50"
+              >
+                <option :if={is_nil(@proto)} value="">
+                  {Translations.t(@locale, "grpc.load_proto_hint")}
+                </option>
+                <option
+                  :for={svc <- Proto.services(@proto)}
+                  value={svc.name}
+                  selected={svc.name == @request.service}
+                >
+                  {svc.name}
+                </option>
+              </select>
+            </label>
+
+            <label class="text-xs text-zinc-500 flex flex-col gap-1">
+              {Translations.t(@locale, "grpc.method")}
+              <select
+                name="request[method]"
+                disabled={is_nil(@proto)}
+                class="rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 disabled:opacity-50"
+              >
+                <option
+                  :for={m <- Proto.methods_for(@proto, @request.service)}
+                  value={m.name}
+                  selected={m.name == @request.method}
+                >
+                  {m.name}{if m.server_streaming?, do: " (stream)", else: ""}
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <%!-- metadata --%>
+          <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+            <h2 class="text-sm font-semibold mb-2">{Translations.t(@locale, "grpc.metadata")}</h2>
+            <TesterComponents.kv_editor
+              rows={@request.metadata}
+              field="metadata"
+              placeholder_key="x-header"
+              placeholder_value="value"
+            />
+          </section>
+
+          <%!-- body --%>
+          <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+            <h2 class="text-sm font-semibold mb-2">{Translations.t(@locale, "grpc.body")}</h2>
+            <textarea
+              name="request[body_text]"
+              rows="8"
+              phx-debounce="200"
+              placeholder={~s({"field": "{{var}}"})}
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-3 py-2 font-mono text-sm dark:bg-zinc-800"
+            >{@request.body_text}</textarea>
+
+            <p :if={enabled_var_names(@globals) != []} class="text-xs text-zinc-500 mt-2">
+              {Translations.t(@locale, "grpc.variables_hint")}
+              <span
+                :for={name <- enabled_var_names(@globals)}
+                class="font-mono text-zinc-700 dark:text-zinc-300"
+              >
+                {"{{" <> name <> "}}"}
+              </span>
+            </p>
+          </section>
+        </form>
+      </div>
+
+      <%!-- ── Panel derecho: response ── --%>
+      <div class="xl:w-1/2 xl:min-w-0 flex flex-col overflow-y-auto">
+        <section class="flex-1 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 min-h-[12rem]">
+          <h2 class="text-sm font-semibold mb-3">{Translations.t(@locale, "grpc.response")}</h2>
+
+          <%= cond do %>
+            <% @in_flight? and @streaming? -> %>
+              <div class="space-y-2">
+                <span class="inline-flex items-center gap-2 px-2 py-0.5 rounded text-xs font-medium bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-300">
+                  <span class="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></span>
+                  {Translations.t(@locale, "grpc.streaming")} {length(@stream_messages)}
+                </span>
+                <.stream_list messages={@stream_messages} />
+              </div>
+            <% @in_flight? -> %>
+              <p class="text-sm text-zinc-500">{Translations.t(@locale, "grpc.sending")}</p>
+            <% @cancelled? -> %>
+              <div class="space-y-2">
+                <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                  {Translations.t(@locale, "grpc.cancelled")} · {Translations.t(
+                    @locale,
+                    "grpc.messages_count",
+                    count: length(@stream_messages)
+                  )}
+                </span>
+                <.stream_list messages={@stream_messages} />
+              </div>
+            <% is_nil(@response) -> %>
+              <p class="text-sm text-zinc-400">{Translations.t(@locale, "grpc.no_response")}</p>
+            <% @response.error -> %>
+              <div class="space-y-2">
+                <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">
+                  {@response.error.type}{if @response.error.code,
+                    do: " · #{@response.error.code}",
+                    else: ""}
+                </span>
+                <pre class="text-xs font-mono whitespace-pre-wrap text-red-700 dark:text-red-300">{@response.error.message}</pre>
+                <div :if={@response.messages != []}>
+                  <p class="text-xs text-zinc-500 mt-2">
+                    {Translations.t(@locale, "grpc.messages_before_error")}
+                  </p>
+                  <pre class="text-xs font-mono whitespace-pre-wrap">{Format.pretty(@response.messages)}</pre>
+                </div>
+              </div>
+            <% true -> %>
+              <div class="space-y-3">
+                <span class="inline-block px-2 py-0.5 rounded text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  OK · grpc-status {@response.status} · {@response.duration_ms}ms
+                </span>
+
+                <%= if @response.streaming? do %>
+                  <p class="text-xs text-zinc-500">
+                    {Translations.t(@locale, "grpc.messages_count",
+                      count: length(@response.messages)
+                    )}
+                  </p>
+                  <.stream_list messages={@response.messages} />
+                <% else %>
+                  <pre class="text-xs font-mono whitespace-pre-wrap rounded bg-zinc-50 dark:bg-zinc-800 p-3">{Format.pretty(@response.body_decoded)}</pre>
+                <% end %>
+              </div>
+          <% end %>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <TesterComponents.collection_variables_modal
+    :if={@collection_vars_modal}
+    state={@collection_vars_modal}
+    locale={@locale}
+  />
+</div>

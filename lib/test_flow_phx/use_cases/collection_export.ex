@@ -7,12 +7,13 @@ defmodule TestFlowPhx.UseCases.CollectionExport do
 
       {
         "format": "testflow-collection",
-        "version": 1,
-        "exported_at": "2026-05-17T18:30:00Z",
+        "version": 2,
+        "exported_at": "2026-05-27T18:30:00Z",
         "collections": [
           {
             "name": "...",
-            "requests": [<mapa del request producido por Serializer>, ...]
+            "requests": [<mapa del request producido por Serializer>, ...],
+            "variables": [{"name": "...", "value": "...", "enabled": true}, ...]
           },
           ...
         ]
@@ -21,13 +22,19 @@ defmodule TestFlowPhx.UseCases.CollectionExport do
   A propósito simple y auto-descriptivo — NO es compatible con Postman.
   Quita los IDs internos para que importar el archivo no colisione con
   registros existentes (el importador asigna IDs nuevos al cargar).
+
+  ## Versionado
+
+  - **v1** (Fase K.2): sin campo `"variables"`.
+  - **v2** (Fase M.6): incluye `"variables"` por colección. El importador
+    acepta v1 (asume `variables: []`) y v2.
   """
 
   alias TestFlowPhx.Domain.Collection
   alias TestFlowPhx.Infrastructure.Storage.Serializer
 
   @format "testflow-collection"
-  @version 1
+  @version 2
 
   @spec build([Collection.t()]) :: map()
   def build(collections) when is_list(collections) do
@@ -67,8 +74,11 @@ defmodule TestFlowPhx.UseCases.CollectionExport do
       "name" => c.name,
       "requests" =>
         Enum.map(c.requests, fn r ->
-          r |> Serializer.dump_request() |> Map.delete("id")
-        end)
+          r
+          |> Serializer.dump_request()
+          |> Map.drop(["id", "collection_id"])
+        end),
+      "variables" => Serializer.dump_variables(c.variables)
     }
   end
 

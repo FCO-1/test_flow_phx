@@ -1,4 +1,4 @@
-defmodule TestFlowPhx.UseCases.SendRequestTest do
+defmodule TestFlowPhx.UseCases.Rest.SendRequestTest do
   @moduledoc """
   Unit tests for the `SendRequest` use case.
 
@@ -9,9 +9,9 @@ defmodule TestFlowPhx.UseCases.SendRequestTest do
 
   use ExUnit.Case, async: false
 
-  alias TestFlowPhx.Domain.{HistoryEntry, Request, Response}
+  alias TestFlowPhx.Domain.{HistoryEntry, Rest.Request, Rest.Response}
   alias TestFlowPhx.Support.FakeHttpExecutor
-  alias TestFlowPhx.UseCases.SendRequest
+  alias TestFlowPhx.UseCases.Rest.SendRequest
 
   setup do
     FakeHttpExecutor.reset()
@@ -112,6 +112,51 @@ defmodule TestFlowPhx.UseCases.SendRequestTest do
       {_response, history} = SendRequest.execute(req)
 
       assert is_nil(history.result_file)
+    end
+  end
+
+  describe "variables (Fase M)" do
+    test "resuelve {{var}} en el request antes de enviarlo" do
+      FakeHttpExecutor.stage(%Response{status: 200, body: "ok"})
+
+      req =
+        Request.new(
+          method: "GET",
+          url: "{{base_url}}/users/{{user_id}}",
+          headers: [%{key: "X-Trace", value: "{{trace}}", enabled: true}]
+        )
+
+      vars = %{
+        "base_url" => "https://api.test",
+        "user_id" => "42",
+        "trace" => "abc"
+      }
+
+      {_response, _history} = SendRequest.execute(req, vars: vars, record_history?: false)
+
+      sent = FakeHttpExecutor.last_request()
+      assert sent.url == "https://api.test/users/42"
+      assert Enum.any?(sent.headers, &(&1 == %{key: "X-Trace", value: "abc", enabled: true}))
+    end
+
+    test "history guarda el request original (con {{vars}} sin resolver)" do
+      FakeHttpExecutor.stage(%Response{status: 200, body: "ok", duration_ms: 1})
+
+      req = Request.new(method: "GET", url: "{{base_url}}/ping")
+      {_response, history} = SendRequest.execute(req, vars: %{"base_url" => "https://api"})
+
+      # El historial preserva el template para que re-send aplique vars actuales
+      assert history.request.url == "{{base_url}}/ping"
+    end
+
+    test "sin opt :vars el request se envía tal cual" do
+      FakeHttpExecutor.stage(%Response{status: 200, body: "ok"})
+
+      req = Request.new(method: "GET", url: "{{base_url}}/ping")
+      {_response, _history} = SendRequest.execute(req, record_history?: false)
+
+      sent = FakeHttpExecutor.last_request()
+      assert sent.url == "{{base_url}}/ping"
     end
   end
 end

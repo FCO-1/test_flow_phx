@@ -14,7 +14,7 @@ config :test_flow_phx, TestFlowPhxWeb.Endpoint,
   # messages that fire when the browser drops a LiveView websocket on reload.
   http: [
     ip: {127, 0, 0, 1},
-    port: 4000,
+    port: 4100,
     http_options: [log_protocol_errors: false]
   ],
   check_origin: false,

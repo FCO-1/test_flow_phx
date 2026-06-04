@@ -5,6 +5,7 @@ import Config
 # the response they want.
 config :test_flow_phx,
   http_executor: TestFlowPhx.Support.FakeHttpExecutor,
+  grpc_executor: TestFlowPhx.Support.FakeGrpcExecutor,
   # Tests start the JsonFileRepo on demand via start_supervised! with a
   # temp dir, so the global app supervisor must NOT start one.
   start_storage: false

@@ -1,4 +1,4 @@
-defmodule TestFlowPhx.Domain.Response do
+defmodule TestFlowPhx.Domain.Rest.Response do
   @moduledoc """
   Entidad de dominio: el resultado de ejecutar un request. Siempre se
   construye, nunca se lanza como excepción — los fallos de red y de

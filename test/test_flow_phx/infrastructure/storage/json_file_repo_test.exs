@@ -1,7 +1,7 @@
 defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepoTest do
   use ExUnit.Case, async: false
 
-  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}
+  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Rest.Request}
   alias TestFlowPhx.Infrastructure.Storage.{JsonFileRepo, Serializer}
 
   setup do

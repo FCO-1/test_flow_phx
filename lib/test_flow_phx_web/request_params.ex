@@ -1,7 +1,7 @@
 defmodule TestFlowPhxWeb.RequestParams do
   @moduledoc """
   Traductor de la capa web entre params de formulario Phoenix (mapas
-  anidados con llaves string) y structs `TestFlowPhx.Domain.Request`.
+  anidados con llaves string) y structs `TestFlowPhx.Domain.Rest.Request`.
 
   Vive en el límite web; funciones puras, sin I/O. Siempre hace fallback
   al request `base` para campos que el formulario omite (ej. cuando un
@@ -9,7 +9,7 @@ defmodule TestFlowPhxWeb.RequestParams do
   `phx-change` no los incluye).
   """
 
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.Domain.Rest.Request
 
   @methods ~w(GET POST PUT PATCH DELETE HEAD OPTIONS)
   @body_types ~w(none json raw form_urlencoded multipart)

@@ -1,4 +1,4 @@
-defmodule TestFlowPhx.Infrastructure.Http.ReqExecutor do
+defmodule TestFlowPhx.Infrastructure.Rest.ReqExecutor do
   @moduledoc """
   Adapter de infrastructure que implementa
   `TestFlowPhx.Domain.Ports.HttpExecutor` sobre el cliente HTTP `Req`.
@@ -9,7 +9,7 @@ defmodule TestFlowPhx.Infrastructure.Http.ReqExecutor do
 
   @behaviour TestFlowPhx.Domain.Ports.HttpExecutor
 
-  alias TestFlowPhx.Domain.{Request, Response}
+  alias TestFlowPhx.Domain.{Rest.Request, Rest.Response}
 
   @default_timeout 30_000
 

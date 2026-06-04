@@ -18,8 +18,8 @@ defmodule TestFlowPhx.Smoke.WebShell do
       TestFlowPhx.Smoke.WebShell.todos()
   """
 
-  alias TestFlowPhx.UseCases.SendRequest
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.UseCases.Rest.SendRequest
+  alias TestFlowPhx.Domain.Rest.Request
 
   def todos do
     reset_checks()

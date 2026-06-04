@@ -1,7 +1,7 @@
 defmodule TestFlowPhxWeb.RequestParamsTest do
   use ExUnit.Case, async: true
 
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.Domain.Rest.Request
   alias TestFlowPhxWeb.RequestParams
 
   setup do

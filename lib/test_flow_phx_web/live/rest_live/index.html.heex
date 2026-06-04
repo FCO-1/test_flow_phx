@@ -19,21 +19,43 @@
       >
         {Translations.t(@locale, "sidebar.history_tab")}
       </button>
+      <button
+        type="button"
+        class={Styles.sidebar_tab(@sidebar_section == :variables)}
+        phx-click="sidebar_section"
+        phx-value-section="variables"
+      >
+        {Translations.t(@locale, "sidebar.variables_tab")}
+      </button>
     </div>
 
     <div class="flex-1 min-h-0">
-      <%= if @sidebar_section == :collections do %>
-        <TesterComponents.collections_sidebar
-          collections={@collections}
-          expanded={@expanded_collections}
-          editing_id={@editing_collection_id}
-        />
-      <% else %>
-        <TesterComponents.history_sidebar history={@history} />
+      <%= case @sidebar_section do %>
+        <% :collections -> %>
+          <TesterComponents.collections_sidebar
+            collections={@collections}
+            expanded={@expanded_collections}
+            editing_id={@editing_collection_id}
+          />
+        <% :history -> %>
+          <TesterComponents.history_sidebar history={@history} />
+        <% :variables -> %>
+          <TesterComponents.variables_sidebar vars={@globals} locale={@locale} />
       <% end %>
     </div>
 
     <div class="pt-3 mt-3 border-t border-zinc-200 dark:border-zinc-800 flex flex-col gap-2 items-center">
+      <nav class="flex gap-1 text-sm w-full justify-center mb-1">
+        <span class="px-3 py-1 rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium">
+          REST
+        </span>
+        <.link
+          navigate={~p"/grpc"}
+          class="px-3 py-1 rounded-md text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+        >
+          gRPC
+        </.link>
+      </nav>
       <TesterComponents.density_toggle density={@density} />
       <TesterComponents.theme_toggle theme={@theme} />
       <button
@@ -105,4 +127,10 @@
   />
 
   <TesterComponents.settings_modal :if={@settings_modal} state={@settings_modal} />
+
+  <TesterComponents.collection_variables_modal
+    :if={@collection_vars_modal}
+    state={@collection_vars_modal}
+    locale={@locale}
+  />
 </div>

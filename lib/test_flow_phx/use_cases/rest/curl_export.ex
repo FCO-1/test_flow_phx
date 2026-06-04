@@ -1,16 +1,25 @@
-defmodule TestFlowPhx.UseCases.CurlExport do
+defmodule TestFlowPhx.UseCases.Rest.CurlExport do
   @moduledoc """
-  Builder puro que convierte un `TestFlowPhx.Domain.Request` en un string
+  Builder puro que convierte un `TestFlowPhx.Domain.Rest.Request` en un string
   de comando `curl` listo para pegar en una shell POSIX.
 
-  Espeja el comportamiento de `TestFlowPhx.Infrastructure.Http.ReqExecutor`
+  Espeja el comportamiento de `TestFlowPhx.Infrastructure.Rest.ReqExecutor`
   para que el comando impreso sea exactamente lo que la app enviaría.
   """
 
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.Domain.Rest.Request
+  alias TestFlowPhx.UseCases.Variables
 
-  @spec from_request(Request.t()) :: String.t()
-  def from_request(%Request{} = req) do
+  @doc """
+  Genera el comando `curl` para un request. Si se pasa `vars` (mapa
+  `name => value`), resuelve placeholders `{{var}}` antes de imprimir
+  — el comando exportado va a una terminal donde las vars no existen,
+  así que llevar literales sería inútil.
+  """
+  @spec from_request(Request.t(), %{String.t() => String.t()}) :: String.t()
+  def from_request(%Request{} = req, vars \\ %{}) do
+    req = if map_size(vars) == 0, do: req, else: Variables.resolve_request(req, vars)
+
     parts =
       ["curl"]
       |> append(["-X", req.method])

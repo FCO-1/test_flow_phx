@@ -41,3 +41,9 @@ npm-debug.log
 # Runtime persistence (collections, history, tabs). Folder tracked, contents ignored.
 /data/*
 !/data/.gitkeep
+
+# Docker: local env file (secrets + ports). Plantilla versionada: .env.example
+/.env
+
+# Claude Code: config personal de la sesión (env vars, permisos). Personal, no versionar.
+/.claude/settings.local.json

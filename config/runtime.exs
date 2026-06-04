@@ -34,7 +34,7 @@ if config_env() == :prod do
       """
 
   host = System.get_env("PHX_HOST") || "example.com"
-  port = String.to_integer(System.get_env("PORT") || "4000")
+  port = String.to_integer(System.get_env("PORT") || "4100")
 
   config :test_flow_phx, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
@@ -48,7 +48,13 @@ if config_env() == :prod do
       ip: {0, 0, 0, 0, 0, 0, 0, 0},
       port: port
     ],
-    secret_key_base: secret_key_base
+    secret_key_base: secret_key_base,
+    # TestFlow es una herramienta local servida por HTTP en un puerto mapeado
+    # (p. ej. localhost:${PORT} vía Docker). Con el check de origin por defecto,
+    # el websocket de LiveView se rechazaría cuando el origin no matchea PHX_HOST.
+    # Desactivarlo es seguro para un tester local; solo aplica a :prod (Docker),
+    # no a dev. Si algún día se expone públicamente, restringir esto.
+    check_origin: false
 
   # ## SSL Support
   #

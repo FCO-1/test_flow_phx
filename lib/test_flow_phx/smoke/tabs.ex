@@ -14,7 +14,7 @@ defmodule TestFlowPhx.Smoke.Tabs do
   ⚠️ Muta `data/state.json`. El último paso limpia las entradas.
   """
 
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.Domain.Rest.Request
   alias TestFlowPhx.Infrastructure.Storage.JsonFileRepo
   alias TestFlowPhx.UseCases.Tabs
 

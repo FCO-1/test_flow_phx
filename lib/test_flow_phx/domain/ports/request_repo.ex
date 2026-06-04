@@ -9,7 +9,7 @@ defmodule TestFlowPhx.Domain.Ports.RequestRepo do
   use cases.
   """
 
-  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}
+  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Rest.Request}
 
   @callback list_collections() :: [Collection.t()]
   @callback upsert_collection(Collection.t()) :: :ok
@@ -26,6 +26,9 @@ defmodule TestFlowPhx.Domain.Ports.RequestRepo do
   @callback list_tabs() :: [Request.t()]
   @callback active_tab_id() :: String.t() | nil
   @callback set_tabs([Request.t()], String.t() | nil) :: :ok
+
+  @callback list_globals() :: [Collection.variable()]
+  @callback replace_globals([Collection.variable()]) :: :ok
 
   @callback subscribe() :: :ok
 end

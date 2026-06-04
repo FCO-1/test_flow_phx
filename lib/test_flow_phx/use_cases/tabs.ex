@@ -4,7 +4,7 @@ defmodule TestFlowPhx.UseCases.Tabs do
   reload del navegador restaure el workspace).
   """
 
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.Domain.Rest.Request
 
   @spec list() :: [Request.t()]
   def list, do: repo().list_tabs()

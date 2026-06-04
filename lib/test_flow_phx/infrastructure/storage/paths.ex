@@ -43,6 +43,29 @@ defmodule TestFlowPhx.Infrastructure.Storage.Paths do
   @spec state_file() :: Path.t()
   def state_file, do: Path.join(data_dir(), "state.json")
 
+  @doc "Directorio donde se guardan los `.proto` subidos por el usuario (gRPC)."
+  @spec proto_dir() :: Path.t()
+  def proto_dir, do: Path.join([data_dir(), "grpc", "protos"])
+
+  @doc """
+  Directorio raíz de los proto-sets gRPC: cada set es una carpeta con el árbol
+  de `.proto` (preservando la estructura de imports) + un `_manifest.json`.
+  """
+  @spec proto_sets_dir() :: Path.t()
+  def proto_sets_dir, do: Path.join([data_dir(), "grpc", "proto_sets"])
+
+  @doc "Directorio de un proto-set puntual (su `import_root`)."
+  @spec proto_set_dir(String.t()) :: Path.t()
+  def proto_set_dir(set_id) when is_binary(set_id),
+    do: Path.join(proto_sets_dir(), set_id)
+
+  @doc """
+  Archivo de estado del store gRPC (colecciones + tabs gRPC). Aparte del
+  `state_file/0` de REST — ver decisión N.11.
+  """
+  @spec grpc_state_file() :: Path.t()
+  def grpc_state_file, do: Path.join([data_dir(), "grpc", "state.json"])
+
   @spec result_dir(protocol(), Date.t()) :: Path.t()
   def result_dir(protocol, %Date{} = date) do
     Path.join([data_dir(), to_string(protocol), Date.to_iso8601(date)])

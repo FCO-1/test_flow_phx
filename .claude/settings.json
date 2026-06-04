@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(mix test)",
+      "Bash(mix test *)",
+      "Bash(mix compile)",
+      "Bash(mix compile *)",
+      "PowerShell(mix test)",
+      "PowerShell(mix test *)",
+      "PowerShell(mix compile)",
+      "PowerShell(mix compile *)",
+      "PowerShell(Select-String *)"
+    ]
+  }
+}

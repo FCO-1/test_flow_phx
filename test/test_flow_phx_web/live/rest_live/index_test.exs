@@ -3,7 +3,7 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
 
   import Phoenix.LiveViewTest
 
-  alias TestFlowPhx.Domain.{Request, Response}
+  alias TestFlowPhx.Domain.{Rest.Request, Rest.Response}
   alias TestFlowPhx.Support.FakeHttpExecutor
 
   setup do
@@ -779,6 +779,157 @@ defmodule TestFlowPhxWeb.RestLive.IndexTest do
       assert text =~ "-X POST"
       assert text =~ "'https://api.test/items'"
       assert text =~ "--data-raw 'hello'"
+    end
+  end
+
+  describe "variables sidebar (Fase M)" do
+    test "pestaña Variables aparece y se puede activar", %{conn: conn} do
+      {:ok, view, html} = live(conn, "/")
+
+      assert html =~ "Variables"
+
+      # El header del editor traduce a "Globales" en es-MX (locale default).
+      assert view
+             |> element("aside button", "Variables")
+             |> render_click() =~ "Globales"
+    end
+
+    test "add_global_row añade una fila editable", %{conn: conn} do
+      {:ok, view, _} = live(conn, "/")
+      view |> element("aside button", "Variables") |> render_click()
+
+      html = view |> element("button", "+ Agregar variable") |> render_click()
+      assert html =~ ~s(name="globals[0][name]")
+    end
+
+    test "send aplica vars globales al request enviado", %{conn: conn} do
+      FakeHttpExecutor.stage(%Response{status: 200, body: "ok"})
+
+      {:ok, view, _} = live(conn, "/")
+      view |> element("aside button", "Variables") |> render_click()
+      view |> element("button", "+ Agregar variable") |> render_click()
+
+      # Set the global var via form change
+      render_change(view |> element("aside form"), %{
+        "globals" => %{"0" => %{"name" => "base_url", "value" => "https://api.test", "enabled" => "true"}}
+      })
+
+      # Set the URL on the active request using the template
+      view |> element("button", "Params") |> render_click()
+      render_change(view |> element("#request-form"), %{
+        "request" => %{"url" => "{{base_url}}/users", "method" => "GET"}
+      })
+
+      # Send — el SendRequest corre en un Task; FakeHttpExecutor.last_request
+      # se guarda síncronamente al ejecutarse el fake `send`, así que para
+      # cuando volvemos del render_submit el dato ya está capturado.
+      view |> element("#request-form") |> render_submit()
+      Process.sleep(50)
+
+      sent = FakeHttpExecutor.last_request()
+      assert sent.url == "https://api.test/users"
+    end
+  end
+
+  describe "modal de variables por colección (Fase M.5)" do
+    alias TestFlowPhx.Infrastructure.Storage.JsonFileRepo
+    alias TestFlowPhx.UseCases.Collections
+
+    setup do
+      tmp =
+        Path.join(System.tmp_dir!(), "tester_live_vars_#{System.unique_integer([:positive])}")
+
+      File.mkdir_p!(tmp)
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      start_supervised!(
+        {JsonFileRepo,
+         name: JsonFileRepo, path: Path.join(tmp, "state.json"), flush_after_ms: 5}
+      )
+
+      :ok
+    end
+
+    test "abrir modal asigna state con vars de la colección y se renderiza", %{conn: conn} do
+      coll = Collections.create("Con Vars")
+      :ok = Collections.set_variables(coll.id, [%{name: "k", value: "v", enabled: true}])
+
+      {:ok, view, html_initial} = live(conn, "/")
+
+      # Antes de abrir: modal no presente
+      refute html_initial =~ ~s(Variables de ")
+
+      render_hook(view, "open_collection_vars_modal", %{"id" => coll.id})
+      html = render(view)
+
+      assert html =~ ~s(Variables de )
+      assert html =~ "Con Vars"
+      assert html =~ ~s(value="k")
+      assert html =~ ~s(value="v")
+    end
+
+    test "add y remove de filas persiste a la colección", %{conn: conn} do
+      coll = Collections.create("Edit Vars")
+
+      {:ok, view, _} = live(conn, "/")
+      render_hook(view, "open_collection_vars_modal", %{"id" => coll.id})
+
+      render_hook(view, "add_collection_var_row", %{})
+      render_hook(view, "update_collection_vars", %{
+        "collection_id" => coll.id,
+        "vars" => %{"0" => %{"name" => "api", "value" => "https://x", "enabled" => "true"}}
+      })
+
+      [stored] = Collections.list() |> Enum.filter(&(&1.id == coll.id))
+      assert stored.variables == [%{name: "api", value: "https://x", enabled: true}]
+    end
+
+    test "send de un request guardado en colección aplica sus vars (precedencia sobre global)", %{
+      conn: conn
+    } do
+      FakeHttpExecutor.stage(%Response{status: 200, body: "ok"})
+
+      coll = Collections.create("Scoped")
+
+      :ok =
+        Collections.set_variables(coll.id, [
+          %{name: "host", value: "scoped.test", enabled: true}
+        ])
+
+      req =
+        Collections.add_request(
+          coll.id,
+          %TestFlowPhx.Domain.Rest.Request{
+            method: "GET",
+            url: "https://{{host}}/api",
+            collection_id: coll.id
+          }
+        )
+
+      {:ok, view, _} = live(conn, "/")
+
+      # Set a global with same name but different value — collection should win
+      view |> element("aside button", "Variables") |> render_click()
+      view |> element("button", "+ Agregar variable") |> render_click()
+
+      render_change(view |> element("aside form"), %{
+        "globals" => %{
+          "0" => %{"name" => "host", "value" => "global.test", "enabled" => "true"}
+        }
+      })
+
+      # Open the saved request in a tab
+      render_hook(view, "open_request_in_tab", %{
+        "collection-id" => coll.id,
+        "request-id" => req.id
+      })
+
+      # Send
+      view |> element("#request-form") |> render_submit()
+      Process.sleep(50)
+
+      sent = FakeHttpExecutor.last_request()
+      assert sent.url == "https://scoped.test/api"
     end
   end
 

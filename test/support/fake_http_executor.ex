@@ -13,7 +13,7 @@ defmodule TestFlowPhx.Support.FakeHttpExecutor do
 
   @behaviour TestFlowPhx.Domain.Ports.HttpExecutor
 
-  alias TestFlowPhx.Domain.Response
+  alias TestFlowPhx.Domain.Rest.Response
 
   @stage_key :fake_http_stage
   @last_request_key :fake_http_last_request

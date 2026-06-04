@@ -4,13 +4,16 @@ defmodule TestFlowPhx.Domain.Collection do
   guardadas. Sin carpetas anidadas todavía.
   """
 
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.Domain.Rest.Request
+
+  @type variable :: %{name: String.t(), value: String.t(), enabled: boolean()}
 
   @type t :: %__MODULE__{
           id: String.t() | nil,
           name: String.t(),
-          requests: [Request.t()]
+          requests: [Request.t()],
+          variables: [variable()]
         }
 
-  defstruct id: nil, name: "", requests: []
+  defstruct id: nil, name: "", requests: [], variables: []
 end

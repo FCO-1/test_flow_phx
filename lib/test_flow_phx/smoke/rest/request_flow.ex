@@ -1,4 +1,4 @@
-defmodule TestFlowPhx.Smoke.RequestFlow do
+defmodule TestFlowPhx.Smoke.Rest.RequestFlow do
   @moduledoc """
   Smoke test manual del flujo de petición completo desde el browser.
 
@@ -9,7 +9,7 @@ defmodule TestFlowPhx.Smoke.RequestFlow do
   Prerequisito: servidor corriendo.
 
       iex -S mix phx.server
-      TestFlowPhx.Smoke.RequestFlow.todos()
+      TestFlowPhx.Smoke.Rest.RequestFlow.todos()
 
   Esto NO simula clicks del browser — para eso usa el browser. Aquí
   ejercitamos el componente `RequestParams` y el use case `SendRequest`
@@ -17,8 +17,8 @@ defmodule TestFlowPhx.Smoke.RequestFlow do
   conectan el form con la red.
   """
 
-  alias TestFlowPhx.Domain.Request
-  alias TestFlowPhx.UseCases.SendRequest
+  alias TestFlowPhx.Domain.Rest.Request
+  alias TestFlowPhx.UseCases.Rest.SendRequest
   alias TestFlowPhxWeb.RequestParams
 
   @httpbin "https://httpbin.org"

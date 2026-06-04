@@ -7,7 +7,7 @@ defmodule TestFlowPhx.Domain.HistoryEntry do
   `result_file`).
   """
 
-  alias TestFlowPhx.Domain.Request
+  alias TestFlowPhx.Domain.Rest.Request
 
   @type t :: %__MODULE__{
           id: String.t() | nil,

@@ -18,6 +18,7 @@ defmodule TestFlowPhxWeb.Router do
     pipe_through :browser
 
     live "/", RestLive.Index, :index
+    live "/grpc", GrpcLive.Index, :index
   end
 
   # Other scopes may use custom stacks.

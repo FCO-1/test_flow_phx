@@ -28,7 +28,7 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
 
   @behaviour TestFlowPhx.Domain.Ports.RequestRepo
 
-  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}
+  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Rest.Request}
   alias TestFlowPhx.Infrastructure.Storage.{Paths, Serializer}
 
   @default_topic "storage"
@@ -81,6 +81,13 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
   def set_tabs(tabs, active_id) when is_list(tabs),
     do: GenServer.call(__MODULE__, {:set_tabs, tabs, active_id})
 
+  @impl true
+  def list_globals, do: GenServer.call(__MODULE__, :list_globals)
+
+  @impl true
+  def replace_globals(vars) when is_list(vars),
+    do: GenServer.call(__MODULE__, {:replace_globals, vars})
+
   @doc """
   Cambia atómicamente el path en disco donde el repo escribe. El estado
   en memoria se flushea inmediatamente al nuevo path para no perder
@@ -129,7 +136,8 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
       collections: document.collections,
       history: document.history,
       tabs: document.tabs,
-      active_tab_id: document.active_tab_id
+      active_tab_id: document.active_tab_id,
+      globals: Map.get(document, :globals, [])
     }
 
     {:ok, state}
@@ -220,6 +228,16 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
     {:reply, :ok, state}
   end
 
+  # ----- Writes (globals) -----
+
+  def handle_call(:list_globals, _from, state),
+    do: {:reply, state.globals, state}
+
+  def handle_call({:replace_globals, vars}, _from, state) do
+    state = %{state | globals: vars} |> mark_dirty()
+    {:reply, :ok, state}
+  end
+
   # ----- Path swap -----
 
   def handle_call({:swap_path, new_path}, _from, state) do
@@ -268,7 +286,8 @@ defmodule TestFlowPhx.Infrastructure.Storage.JsonFileRepo do
         collections: state.collections,
         history: state.history,
         tabs: state.tabs,
-        active_tab_id: state.active_tab_id
+        active_tab_id: state.active_tab_id,
+        globals: state.globals
       })
 
     json = Jason.encode_to_iodata!(payload, pretty: true)

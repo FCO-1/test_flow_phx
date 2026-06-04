@@ -22,18 +22,22 @@ defmodule TestFlowPhxWeb.RestLive.Index do
 
   use TestFlowPhxWeb, :live_view
 
-  alias TestFlowPhx.Domain.{Request, Response}
+  alias TestFlowPhx.Domain.{Rest.Request, Rest.Response}
+
+  alias TestFlowPhx.Domain.Collection
 
   alias TestFlowPhx.UseCases.{
     CollectionExport,
     CollectionImport,
     Collections,
-    CurlExport,
+    Globals,
     History,
-    SendRequest,
     Settings,
-    Translations
+    Translations,
+    Variables
   }
+
+  alias TestFlowPhx.UseCases.Rest.{CurlExport, SendRequest}
 
   alias TestFlowPhxWeb.RequestParams
   alias TestFlowPhxWeb.TesterComponents
@@ -61,10 +65,12 @@ defmodule TestFlowPhxWeb.RestLive.Index do
       |> assign(:editing_collection_id, nil)
       |> assign(:save_modal, nil)
       |> assign(:history, RepoHelpers.load_history())
+      |> assign(:globals, RepoHelpers.load_globals())
       |> assign(:curl_copied?, false)
       |> assign(:theme, :system)
       |> assign(:density, :standard)
       |> assign(:settings_modal, nil)
+      |> assign(:collection_vars_modal, nil)
       |> assign(:locale, Settings.get_locale())
       |> TabState.put_active_view()
 
@@ -75,7 +81,7 @@ defmodule TestFlowPhxWeb.RestLive.Index do
 
   @impl true
   def handle_event("sidebar_section", %{"section" => section}, socket)
-      when section in ["collections", "history"] do
+      when section in ["collections", "history", "variables"] do
     {:noreply, assign(socket, :sidebar_section, String.to_existing_atom(section))}
   end
 
@@ -286,11 +292,12 @@ defmodule TestFlowPhxWeb.RestLive.Index do
         end
 
       request = socket.assigns.active_request
+      vars = active_vars(socket)
 
       task =
         Task.Supervisor.async_nolink(
           TestFlowPhx.TaskSupervisor,
-          fn -> SendRequest.execute(request) end
+          fn -> SendRequest.execute(request, vars: vars) end
         )
 
       socket =
@@ -436,7 +443,7 @@ defmodule TestFlowPhxWeb.RestLive.Index do
   # ---------- Copy as cURL ----------
 
   def handle_event("copy_as_curl", _params, socket) do
-    curl = CurlExport.from_request(socket.assigns.active_request)
+    curl = CurlExport.from_request(socket.assigns.active_request, active_vars(socket))
     Process.send_after(self(), :clear_curl_copied, 1500)
 
     socket =
@@ -577,7 +584,7 @@ defmodule TestFlowPhxWeb.RestLive.Index do
       ) do
     with %{} = coll <- Enum.find(socket.assigns.collections, &(&1.id == coll_id)),
          %Request{} = req <- Enum.find(coll.requests, &(&1.id == req_id)) do
-      tab = %{req | id: Request.new_id()}
+      tab = %{req | id: Request.new_id(), collection_id: coll_id}
 
       socket =
         socket
@@ -659,11 +666,12 @@ defmodule TestFlowPhxWeb.RestLive.Index do
 
         if coll_id do
           base = socket.assigns.active_request
-          req = %{base | id: Request.new_id(), name: name}
+          req = %{base | id: Request.new_id(), name: name, collection_id: coll_id}
           RepoHelpers.try_call(fn -> Collections.add_request(coll_id, req) end)
 
           socket =
             socket
+            |> TabState.update_active(fn r -> %{r | collection_id: coll_id} end)
             |> assign(:save_modal, nil)
             |> update(:expanded_collections, &MapSet.put(&1, coll_id))
             |> RepoHelpers.refresh_collections()
@@ -700,6 +708,71 @@ defmodule TestFlowPhxWeb.RestLive.Index do
   def handle_event("clear_history", _params, socket) do
     RepoHelpers.try_call(fn -> History.clear() end)
     {:noreply, RepoHelpers.refresh_history(socket)}
+  end
+
+  # ---------- Collection variables modal ----------
+
+  def handle_event("open_collection_vars_modal", %{"id" => id}, socket) do
+    case Enum.find(socket.assigns.collections, &(&1.id == id)) do
+      nil ->
+        {:noreply, socket}
+
+      %Collection{} = c ->
+        state = %{collection_id: c.id, collection_name: c.name, vars: c.variables}
+        {:noreply, assign(socket, :collection_vars_modal, state)}
+    end
+  end
+
+  def handle_event("close_collection_vars_modal", _params, socket),
+    do: {:noreply, assign(socket, :collection_vars_modal, nil)}
+
+  def handle_event("update_collection_vars", %{"collection_id" => coll_id} = params, socket) do
+    vars = params |> Map.get("vars", %{}) |> parse_vars_params()
+    persist_collection_vars(socket, coll_id, vars)
+  end
+
+  def handle_event("add_collection_var_row", _params, socket) do
+    case socket.assigns.collection_vars_modal do
+      nil ->
+        {:noreply, socket}
+
+      %{collection_id: coll_id, vars: vars} ->
+        persist_collection_vars(socket, coll_id, vars ++ [Variables.empty()])
+    end
+  end
+
+  def handle_event("remove_collection_var_row", %{"index" => idx_str}, socket) do
+    case socket.assigns.collection_vars_modal do
+      nil ->
+        {:noreply, socket}
+
+      %{collection_id: coll_id, vars: vars} ->
+        idx = String.to_integer(idx_str)
+        persist_collection_vars(socket, coll_id, List.delete_at(vars, idx))
+    end
+  end
+
+  # ---------- Globals editor ----------
+
+  def handle_event("update_globals", %{"globals" => params}, socket) do
+    vars = parse_globals_params(params)
+    RepoHelpers.try_call(fn -> Globals.replace(vars) end)
+    {:noreply, assign(socket, :globals, vars)}
+  end
+
+  def handle_event("update_globals", _params, socket), do: {:noreply, socket}
+
+  def handle_event("add_global_row", _params, socket) do
+    vars = socket.assigns.globals ++ [Variables.empty()]
+    RepoHelpers.try_call(fn -> Globals.replace(vars) end)
+    {:noreply, assign(socket, :globals, vars)}
+  end
+
+  def handle_event("remove_global_row", %{"index" => idx_str}, socket) do
+    idx = String.to_integer(idx_str)
+    vars = List.delete_at(socket.assigns.globals, idx)
+    RepoHelpers.try_call(fn -> Globals.replace(vars) end)
+    {:noreply, assign(socket, :globals, vars)}
   end
 
   # ---------- Task results ----------
@@ -750,4 +823,54 @@ defmodule TestFlowPhxWeb.RestLive.Index do
     do: {:noreply, assign(socket, :curl_copied?, false)}
 
   def handle_info(_other, socket), do: {:noreply, socket}
+
+  # ---------- Helpers de variables ----------
+
+  defp active_vars(socket) do
+    globals = socket.assigns.globals
+    req = socket.assigns.active_request
+
+    collection_vars =
+      with id when is_binary(id) <- req.collection_id,
+           %Collection{variables: vars} <- Enum.find(socket.assigns.collections, &(&1.id == id)) do
+        vars
+      else
+        _ -> []
+      end
+
+    Variables.merge(globals, collection_vars)
+  end
+
+  defp parse_globals_params(params), do: parse_vars_params(params)
+
+  defp parse_vars_params(params) when is_map(params) do
+    params
+    |> Enum.sort_by(fn {idx_str, _} -> String.to_integer(idx_str) end)
+    |> Enum.map(fn {_idx, row} ->
+      %{
+        name: Map.get(row, "name", ""),
+        value: Map.get(row, "value", ""),
+        enabled: Map.get(row, "enabled", "false") in ["true", true, "on"]
+      }
+    end)
+  end
+
+  defp parse_vars_params(_), do: []
+
+  defp persist_collection_vars(socket, coll_id, vars) do
+    RepoHelpers.try_call(fn -> Collections.set_variables(coll_id, vars) end)
+
+    modal_state =
+      case socket.assigns.collection_vars_modal do
+        %{collection_id: ^coll_id} = state -> %{state | vars: vars}
+        other -> other
+      end
+
+    socket =
+      socket
+      |> assign(:collection_vars_modal, modal_state)
+      |> RepoHelpers.refresh_collections()
+
+    {:noreply, socket}
+  end
 end

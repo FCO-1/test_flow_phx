@@ -1,7 +1,7 @@
 defmodule TestFlowPhx.Infrastructure.Storage.SerializerTest do
   use ExUnit.Case, async: true
 
-  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Request}
+  alias TestFlowPhx.Domain.{Collection, HistoryEntry, Rest.Request}
   alias TestFlowPhx.Infrastructure.Storage.Serializer
 
   describe "request round-trip" do
@@ -105,7 +105,8 @@ defmodule TestFlowPhx.Infrastructure.Storage.SerializerTest do
         collections: [%Collection{id: "c1", name: "X", requests: []}],
         history: [],
         tabs: [Request.new(id: "t1", method: "GET", url: "https://x.test")],
-        active_tab_id: "t1"
+        active_tab_id: "t1",
+        globals: []
       }
 
       json = doc |> Serializer.dump_document() |> Jason.encode!()
@@ -119,6 +120,59 @@ defmodule TestFlowPhx.Infrastructure.Storage.SerializerTest do
     test "load_document handles nil / empty map gracefully" do
       assert Serializer.load_document(nil) == Serializer.empty_document()
       assert Serializer.load_document(%{}) == Serializer.empty_document()
+    end
+  end
+
+  describe "variables (Fase M)" do
+    test "request round-trip preserves collection_id" do
+      req = Request.new(id: "r1", method: "GET", url: "https://x", collection_id: "c1")
+      loaded = req |> Serializer.dump_request() |> Serializer.load_request()
+      assert loaded.collection_id == "c1"
+    end
+
+    test "request without collection_id defaults to nil on load" do
+      old_dump = Request.new(id: "r1") |> Serializer.dump_request() |> Map.delete("collection_id")
+      assert %Request{collection_id: nil} = Serializer.load_request(old_dump)
+    end
+
+    test "collection round-trip preserves variables" do
+      coll = %Collection{
+        id: "c1",
+        name: "C",
+        requests: [],
+        variables: [
+          %{name: "base_url", value: "https://api", enabled: true},
+          %{name: "muted", value: "x", enabled: false}
+        ]
+      }
+
+      loaded = coll |> Serializer.dump_collection() |> Serializer.load_collection()
+      assert loaded.variables == coll.variables
+    end
+
+    test "collection without variables key loads as empty list" do
+      legacy = %{"id" => "c1", "name" => "C", "requests" => []}
+      assert %Collection{variables: []} = Serializer.load_collection(legacy)
+    end
+
+    test "document round-trip preserves globals" do
+      doc = %{
+        collections: [],
+        history: [],
+        tabs: [],
+        active_tab_id: nil,
+        globals: [%{name: "g1", value: "v1", enabled: true}]
+      }
+
+      json = doc |> Serializer.dump_document() |> Jason.encode!()
+      loaded = json |> Jason.decode!() |> Serializer.load_document()
+
+      assert loaded.globals == [%{name: "g1", value: "v1", enabled: true}]
+    end
+
+    test "document without globals key loads as empty list (back-compat)" do
+      legacy_json = ~s({"version":1,"collections":[],"history":[],"tabs":[],"active_tab_id":null})
+      assert %{globals: []} = legacy_json |> Jason.decode!() |> Serializer.load_document()
     end
   end
 end

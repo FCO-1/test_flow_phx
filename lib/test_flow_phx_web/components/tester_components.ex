@@ -8,7 +8,7 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
   use Phoenix.Component
 
-  alias TestFlowPhx.Domain.{Collection, Request, Response}
+  alias TestFlowPhx.Domain.{Collection, Rest.Request, Rest.Response}
   alias TestFlowPhx.UseCases.Translations
 
   @methods ~w(GET POST PUT PATCH DELETE HEAD OPTIONS)
@@ -294,6 +294,20 @@ defmodule TestFlowPhxWeb.TesterComponents do
 
             <button
               type="button"
+              phx-click="open_collection_vars_modal"
+              phx-value-id={c.id}
+              aria-label="Variables de colección"
+              title={"Variables (#{length(c.variables)})"}
+              class={[
+                "px-1 invisible group-hover:visible text-xs",
+                if(c.variables != [],
+                  do: "text-emerald-600 dark:text-emerald-400 hover:text-emerald-800",
+                  else: "text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100"
+                )
+              ]}
+            >{"{x}"}</button>
+            <button
+              type="button"
               phx-click="export_collection"
               phx-value-id={c.id}
               aria-label="Export collection"
@@ -387,6 +401,72 @@ defmodule TestFlowPhxWeb.TesterComponents do
           </button>
         </li>
       </ul>
+    </div>
+    """
+  end
+
+  attr :vars, :list, required: true
+  attr :locale, :string, required: true
+
+  def variables_sidebar(assigns) do
+    ~H"""
+    <div class="space-y-2">
+      <div class="flex items-center justify-between">
+        <h3 class="text-xs uppercase tracking-wide text-zinc-500 dark:text-zinc-400 px-1">
+          {Translations.t(@locale, "variables.globals_header")}
+        </h3>
+      </div>
+
+      <p class="text-xs text-zinc-400 dark:text-zinc-500 px-1 italic">
+        {Translations.t(@locale, "variables.helper")}
+      </p>
+
+      <form phx-change="update_globals" class="space-y-1.5">
+        <div :for={{row, idx} <- Enum.with_index(@vars)} class="flex gap-1 items-center">
+          <input type="hidden" name={"globals[#{idx}][enabled]"} value="false" />
+          <input
+            type="checkbox"
+            name={"globals[#{idx}][enabled]"}
+            value="true"
+            checked={row.enabled}
+            class="rounded border-zinc-300 dark:border-zinc-700"
+            title={Translations.t(@locale, "variables.toggle_title")}
+          />
+          <input
+            type="text"
+            name={"globals[#{idx}][name]"}
+            value={row.name}
+            placeholder={Translations.t(@locale, "variables.name_placeholder")}
+            phx-debounce="300"
+            class="flex-1 min-w-0 rounded border border-zinc-300 dark:border-zinc-700 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+          />
+          <input
+            type="text"
+            name={"globals[#{idx}][value]"}
+            value={row.value}
+            placeholder={Translations.t(@locale, "variables.value_placeholder")}
+            phx-debounce="300"
+            class="flex-1 min-w-0 rounded border border-zinc-300 dark:border-zinc-700 px-1.5 py-0.5 font-mono text-xs dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+          />
+          <button
+            type="button"
+            phx-click="remove_global_row"
+            phx-value-index={idx}
+            class="text-zinc-400 dark:text-zinc-500 hover:text-red-600 px-1 text-sm leading-none"
+            aria-label={Translations.t(@locale, "variables.remove_row_label")}
+          >
+            ×
+          </button>
+        </div>
+      </form>
+
+      <button
+        type="button"
+        phx-click="add_global_row"
+        class="text-xs text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 px-1"
+      >
+        {Translations.t(@locale, "variables.add_row")}
+      </button>
     </div>
     """
   end
@@ -1042,6 +1122,85 @@ defmodule TestFlowPhxWeb.TesterComponents do
       is_binary(url) and url != "" -> url
       true -> "Untitled"
     end
+  end
+
+  attr :state, :map, required: true
+  attr :locale, :string, required: true
+
+  def collection_variables_modal(assigns) do
+    ~H"""
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40">
+      <div
+        class="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-2xl p-5"
+        phx-click-away="close_collection_vars_modal"
+        phx-window-keydown="close_collection_vars_modal"
+        phx-key="Escape"
+      >
+        <h2 class="text-base font-semibold text-zinc-800 dark:text-zinc-200 mb-1">
+          {Translations.t(@locale, "variables.modal_title", name: @state.collection_name)}
+        </h2>
+        <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-3">
+          {Translations.t(@locale, "variables.modal_help")}
+        </p>
+
+        <form phx-change="update_collection_vars" class="space-y-1.5">
+          <input type="hidden" name="collection_id" value={@state.collection_id} />
+          <div :for={{row, idx} <- Enum.with_index(@state.vars)} class="flex gap-2 items-center">
+            <input type="hidden" name={"vars[#{idx}][enabled]"} value="false" />
+            <input
+              type="checkbox"
+              name={"vars[#{idx}][enabled]"}
+              value="true"
+              checked={row.enabled}
+              class="rounded border-zinc-300 dark:border-zinc-700"
+              title={Translations.t(@locale, "variables.toggle_title")}
+            />
+            <input
+              type="text"
+              name={"vars[#{idx}][name]"}
+              value={row.name}
+              placeholder={Translations.t(@locale, "variables.name_placeholder")}
+              phx-debounce="300"
+              class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            />
+            <input
+              type="text"
+              name={"vars[#{idx}][value]"}
+              value={row.value}
+              placeholder={Translations.t(@locale, "variables.value_placeholder")}
+              phx-debounce="300"
+              class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 font-mono text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            />
+            <button
+              type="button"
+              phx-click="remove_collection_var_row"
+              phx-value-index={idx}
+              class="text-zinc-400 dark:text-zinc-500 hover:text-red-600 px-2"
+              aria-label={Translations.t(@locale, "variables.remove_row_label")}
+            >×</button>
+          </div>
+        </form>
+
+        <div class="flex items-center justify-between mt-3">
+          <button
+            type="button"
+            phx-click="add_collection_var_row"
+            class="text-sm text-zinc-600 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100"
+          >
+            {Translations.t(@locale, "variables.add_row")}
+          </button>
+
+          <button
+            type="button"
+            phx-click="close_collection_vars_modal"
+            class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-900"
+          >
+            {Translations.t(@locale, "variables.modal_close")}
+          </button>
+        </div>
+      </div>
+    </div>
+    """
   end
 
   # Discourage unused alias warnings while keeping aliases for typespecs.
