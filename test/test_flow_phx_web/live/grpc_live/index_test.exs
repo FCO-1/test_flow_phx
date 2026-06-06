@@ -37,6 +37,18 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
     render(view)
   end
 
+  # Crea una colección vía el modal (abrir → submit), reflejando el flujo de UI.
+  defp create_collection(view, name) do
+    view |> element("button[phx-click='open_new_collection_modal']") |> render_click()
+    view |> form("form[phx-submit='new_collection']", %{name: name}) |> render_submit()
+  end
+
+  # Guarda la pestaña activa en una colección vía el modal (botón ⤓ → submit).
+  defp save_active_tab(view, params) do
+    view |> element("button[phx-click='open_save_tab_modal']") |> render_click()
+    view |> form("form[phx-submit='save_to_collection']", params) |> render_submit()
+  end
+
   defp load_echo_proto(view) do
     proto =
       file_input(view, "#proto-form", :protos, [
@@ -298,10 +310,7 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
     test "crea una colección desde el sidebar", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/grpc")
 
-      html =
-        view
-        |> form("form[phx-submit='new_collection']", %{name: "Mi colección"})
-        |> render_submit()
+      html = create_collection(view, "Mi colección")
 
       assert html =~ "Mi colección"
       assert [%{name: "Mi colección"}] = GrpcCollections.list()
@@ -310,19 +319,14 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
     test "guarda el request actual y lo reabre en el form", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/grpc")
 
-      view |> form("form[phx-submit='new_collection']", %{name: "C"}) |> render_submit()
+      create_collection(view, "C")
       [coll] = GrpcCollections.list()
 
       view
       |> form("#grpc-form", request: %{target: "saved-host:1234", body_text: ~s({"a":1})})
       |> render_change()
 
-      view
-      |> form("form[phx-submit='save_to_collection']", %{
-        collection_id: coll.id,
-        name: "Echo guardado"
-      })
-      |> render_submit()
+      save_active_tab(view, %{collection_id: coll.id, name: "Echo guardado"})
 
       # el request quedó guardado en la colección
       assert [stored] = GrpcCollections.list()
@@ -346,7 +350,7 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
     test "las collection-vars resuelven {{var}} al enviar", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/grpc")
 
-      view |> form("form[phx-submit='new_collection']", %{name: "C"}) |> render_submit()
+      create_collection(view, "C")
       [coll] = GrpcCollections.list()
 
       :ok =
@@ -357,15 +361,74 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       # guardar el request en la colección: a partir de acá pertenece a ella
       view |> form("#grpc-form", request: %{target: "{{host}}"}) |> render_change()
 
-      view
-      |> form("form[phx-submit='save_to_collection']", %{collection_id: coll.id, name: "R"})
-      |> render_submit()
+      save_active_tab(view, %{collection_id: coll.id, name: "R"})
 
       FakeGrpcExecutor.stage(%Response{status: 0})
       view |> form("#grpc-form", request: %{target: "{{host}}"}) |> render_submit()
       await(view)
 
       assert FakeGrpcExecutor.last_request().target == "9.9.9.9:1"
+    end
+
+    test "guardar pestaña creando una colección nueva desde el modal", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      view |> form("#grpc-form", request: %{target: "nuevo:1"}) |> render_change()
+      save_active_tab(view, %{name: "Mi req", new_collection_name: "Colección nueva"})
+
+      assert [%{name: "Colección nueva", requests: [%{name: "Mi req", target: "nuevo:1"}]}] =
+               GrpcCollections.list()
+    end
+
+    test "mover un request de una colección a otra desde el modal", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      create_collection(view, "Origen")
+      create_collection(view, "Destino")
+      origen = Enum.find(GrpcCollections.list(), &(&1.name == "Origen"))
+      destino = Enum.find(GrpcCollections.list(), &(&1.name == "Destino"))
+
+      # guardar un request en Origen
+      view |> form("#grpc-form", request: %{target: "h:1"}) |> render_change()
+      save_active_tab(view, %{collection_id: origen.id, name: "Movible"})
+
+      [req] = Enum.find(GrpcCollections.list(), &(&1.id == origen.id)).requests
+
+      # expandir Origen para que su request (y el botón mover) estén en el DOM
+      view
+      |> element("button[phx-click='toggle_collection'][phx-value-id='#{origen.id}']")
+      |> render_click()
+
+      # abrir el modal "mover" y mover a Destino
+      view
+      |> element("button[phx-click='open_move_request_modal'][phx-value-request-id='#{req.id}']")
+      |> render_click()
+
+      view
+      |> form("form[phx-submit='commit_move_request']", %{collection_id: destino.id})
+      |> render_submit()
+
+      assert Enum.find(GrpcCollections.list(), &(&1.id == origen.id)).requests == []
+
+      assert [%{name: "Movible", target: "h:1"}] =
+               Enum.find(GrpcCollections.list(), &(&1.id == destino.id)).requests
+    end
+
+    test "renombrar una colección desde el modal", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      create_collection(view, "Viejo nombre")
+      [coll] = GrpcCollections.list()
+
+      view
+      |> element("button[phx-click='open_rename_collection_modal'][phx-value-id='#{coll.id}']")
+      |> render_click()
+
+      view
+      |> form("form[phx-submit='commit_rename_collection']", %{name: "Nuevo nombre"})
+      |> render_submit()
+
+      assert [%{name: "Nuevo nombre"}] = GrpcCollections.list()
     end
   end
 
@@ -415,6 +478,30 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
         |> render_click()
 
       assert html =~ "uno:1111"
+    end
+
+    test "duplicar una tab crea una copia (id fresco) heredando su colección",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      # darle contenido y guardarla en una colección → la tab tiene collection_id
+      create_collection(view, "C")
+      [coll] = GrpcCollections.list()
+      view |> form("#grpc-form", request: %{target: "dup:1"}) |> render_change()
+      save_active_tab(view, %{collection_id: coll.id, name: "Orig"})
+
+      [orig] = GrpcTabs.list()
+      assert orig.collection_id == coll.id
+
+      view |> element("button[phx-click='duplicate_tab']") |> render_click()
+
+      tabs = GrpcTabs.list()
+      assert length(tabs) == 2
+      [_orig, copy] = tabs
+      assert copy.id != orig.id
+      assert copy.collection_id == coll.id
+      assert copy.target == "dup:1"
+      assert copy.name == "Orig"
     end
 
     test "cerrar la última tab siembra una fresca", %{conn: conn} do
@@ -504,7 +591,7 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
 
     test "Export dispara la descarga del JSON de la colección", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/grpc")
-      view |> form("form[phx-submit='new_collection']", %{name: "Exportable"}) |> render_submit()
+      create_collection(view, "Exportable")
       [coll] = GrpcCollections.list()
 
       view
@@ -634,7 +721,7 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
          %{conn: conn} do
       {:ok, view, _html} = live(conn, "/grpc")
 
-      view |> form("form[phx-submit='new_collection']", %{name: "C"}) |> render_submit()
+      create_collection(view, "C")
       [coll] = GrpcCollections.list()
 
       # abrir el modal de vars de esa colección

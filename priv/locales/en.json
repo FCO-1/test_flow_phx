@@ -119,6 +119,20 @@
     "empty_collection": "(empty)",
     "delete_collection_confirm": "Delete collection \"%{name}\"?",
     "untitled": "Untitled",
+    "new_collection_button": "+ New collection",
+    "new_collection_title": "New collection",
+    "new_collection_name_placeholder": "collection name",
+    "create": "Create",
+    "cancel_button": "Cancel",
+    "save_tab_title": "Save tab to collection",
+    "save_tab_existing": "Existing collection",
+    "save_tab_new": "+ New collection",
+    "save_tab_new_placeholder": "new collection name",
+    "move_request_title": "Move request to another collection",
+    "move_to": "Move to…",
+    "move_no_targets": "No other collection to move to.",
+    "move_button": "Move",
+    "rename_collection_title": "Rename collection",
     "upload_errors": {
       "too_large": "too large",
       "too_many_files": "too many files",
@@ -135,7 +149,11 @@
       "toggle_collection": "Toggle collection",
       "delete_collection": "Delete collection",
       "export_collection": "Export collection",
-      "delete_request": "Delete request"
+      "delete_request": "Delete request",
+      "save_tab": "Save tab to collection",
+      "move_request": "Move request to another collection",
+      "rename_collection": "Rename collection",
+      "duplicate_tab": "Duplicate tab"
     }
   }
 }

@@ -17,7 +17,7 @@
 
   <div class="flex-1 flex min-h-0">
     <%!-- ── Sidebar: Colecciones | Variables ── --%>
-    <aside class="w-64 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3 overflow-y-auto">
+    <aside class="w-72 shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 p-3 overflow-y-auto">
       <div class="flex gap-1 mb-3">
         <button
           type="button"
@@ -386,6 +386,28 @@
   <TesterComponents.collection_variables_modal
     :if={@collection_vars_modal}
     state={@collection_vars_modal}
+    locale={@locale}
+  />
+
+  <.new_collection_modal :if={@new_collection_modal} locale={@locale} />
+
+  <.save_tab_modal
+    :if={@save_tab_modal}
+    state={@save_tab_modal}
+    collections={@collections}
+    locale={@locale}
+  />
+
+  <.move_request_modal
+    :if={@move_request_modal}
+    state={@move_request_modal}
+    collections={@collections}
+    locale={@locale}
+  />
+
+  <.rename_collection_modal
+    :if={@rename_collection_modal}
+    state={@rename_collection_modal}
     locale={@locale}
   />
 </div>

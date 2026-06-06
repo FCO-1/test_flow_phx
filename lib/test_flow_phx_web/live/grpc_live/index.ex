@@ -65,6 +65,10 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
       |> assign(:expanded_collections, MapSet.new())
       |> assign(:sidebar_section, :collections)
       |> assign(:collection_vars_modal, nil)
+      |> assign(:new_collection_modal, false)
+      |> assign(:save_tab_modal, nil)
+      |> assign(:move_request_modal, nil)
+      |> assign(:rename_collection_modal, nil)
       |> assign(:proto, nil)
       |> assign(:proto_error, nil)
       |> assign(:proto_names, [])
@@ -168,6 +172,30 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     {:noreply, socket}
   end
 
+  # Duplica una pestaña: copia su request con id de tab fresco, insertada justo
+  # después del original y activada. Hereda el `collection_id` del original, así
+  # que por defecto se guarda sobre la misma colección. El estado runtime
+  # (response/streaming) NO se copia: la copia arranca limpia.
+  def handle_event("duplicate_tab", %{"id" => id}, socket) do
+    case Enum.find_index(socket.assigns.tabs, &(&1.id == id)) do
+      nil ->
+        {:noreply, socket}
+
+      idx ->
+        copy = %{Enum.at(socket.assigns.tabs, idx) | id: Request.new_id()}
+
+        socket =
+          socket
+          |> update(:tabs, &List.insert_at(&1, idx + 1, copy))
+          |> assign(:active_tab_id, copy.id)
+          |> TabState.put_active_view()
+          |> load_active_proto()
+          |> TabState.save()
+
+        {:noreply, socket}
+    end
+  end
+
   def handle_event("close_tab", %{"id" => id}, socket) do
     tabs = socket.assigns.tabs
 
@@ -244,7 +272,15 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
 
   # ---------- Colecciones ----------
 
+  def handle_event("open_new_collection_modal", _params, socket),
+    do: {:noreply, assign(socket, :new_collection_modal, true)}
+
+  def handle_event("close_new_collection_modal", _params, socket),
+    do: {:noreply, assign(socket, :new_collection_modal, false)}
+
   def handle_event("new_collection", %{"name" => name}, socket) do
+    socket = assign(socket, :new_collection_modal, false)
+
     case String.trim(name) do
       "" ->
         {:noreply, socket}
@@ -262,6 +298,32 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   def handle_event("delete_collection", %{"id" => id}, socket) do
     try_call(fn -> GrpcCollections.delete(id) end)
     {:noreply, refresh_collections(socket)}
+  end
+
+  def handle_event("open_rename_collection_modal", %{"id" => id}, socket) do
+    case Enum.find(socket.assigns.collections, &(&1.id == id)) do
+      %Collection{} = c ->
+        {:noreply, assign(socket, :rename_collection_modal, %{collection_id: c.id, name: c.name})}
+
+      _ ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("close_rename_collection_modal", _params, socket),
+    do: {:noreply, assign(socket, :rename_collection_modal, nil)}
+
+  def handle_event("commit_rename_collection", %{"name" => name}, socket) do
+    modal = socket.assigns.rename_collection_modal
+    socket = assign(socket, :rename_collection_modal, nil)
+
+    with %{collection_id: id} <- modal,
+         name when name != "" <- String.trim(name) do
+      try_call(fn -> GrpcCollections.rename(id, name) end)
+      {:noreply, refresh_collections(socket)}
+    else
+      _ -> {:noreply, socket}
+    end
   end
 
   # ---------- Export / Import (formato nativo gRPC) ----------
@@ -419,31 +481,40 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     end
   end
 
-  # Guarda el request actual en una colección. El nombre del form tiene
-  # precedencia; si viene vacío cae al nombre del request en edición.
-  def handle_event("save_to_collection", %{"collection_id" => cid} = params, socket) do
-    case String.trim(cid) do
-      "" ->
-        {:noreply, socket}
+  # Abre el modal "guardar pestaña" para una tab concreta (la que tiene el
+  # botón ⤓): así se puede publicar cualquier pestaña, no solo la activa.
+  def handle_event("open_save_tab_modal", %{"id" => tab_id}, socket) do
+    case Enum.find(socket.assigns.tabs, &(&1.id == tab_id)) do
+      %Request{} = tab -> {:noreply, assign(socket, :save_tab_modal, %{tab_id: tab.id, name: tab.name})}
+      _ -> {:noreply, socket}
+    end
+  end
 
-      cid ->
-        name = request_name(params["name"], socket.assigns.request.name)
-        req = %{socket.assigns.request | name: name, collection_id: cid}
+  def handle_event("close_save_tab_modal", _params, socket),
+    do: {:noreply, assign(socket, :save_tab_modal, nil)}
 
-        # La tab activa siempre tiene id, así que add_request lo preserva: el
-        # request guardado conserva el id de la tab → la actualizamos en sitio.
-        socket =
-          case try_call(fn -> GrpcCollections.add_request(cid, req) end) do
-            %Request{} = saved ->
-              socket
-              |> TabState.update_active(fn _ -> saved end)
-              |> TabState.save()
+  # Guarda una pestaña (la del modal, o la activa como fallback) en una
+  # colección existente o en una nueva (`new_collection_name` tiene precedencia
+  # sobre `collection_id`). El nombre del form tiene precedencia sobre el de la
+  # pestaña. add_request preserva el id de la tab → la actualizamos en sitio.
+  def handle_event("save_to_collection", params, socket) do
+    tab_id = save_tab_target_id(socket)
+    tab = Enum.find(socket.assigns.tabs, &(&1.id == tab_id))
 
-            _ ->
-              socket
-          end
+    with %Request{} = tab <- tab,
+         {:ok, cid} <- resolve_save_target(params) do
+      name = request_name(params["name"], tab.name)
+      req = %{tab | name: name, collection_id: cid}
 
-        {:noreply, refresh_collections(socket)}
+      socket =
+        case try_call(fn -> GrpcCollections.add_request(cid, req) end) do
+          %Request{} = saved -> socket |> update_tab(tab_id, fn _ -> saved end) |> TabState.save()
+          _ -> socket
+        end
+
+      {:noreply, socket |> assign(:save_tab_modal, nil) |> refresh_collections()}
+    else
+      _ -> {:noreply, assign(socket, :save_tab_modal, nil)}
     end
   end
 
@@ -521,6 +592,50 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
       ) do
     try_call(fn -> GrpcCollections.remove_request(cid, rid) end)
     {:noreply, refresh_collections(socket)}
+  end
+
+  # ---------- Mover request entre colecciones (modal) ----------
+
+  def handle_event(
+        "open_move_request_modal",
+        %{"collection-id" => cid, "request-id" => rid},
+        socket
+      ) do
+    case find_request(socket.assigns.collections, cid, rid) do
+      %Request{} = req ->
+        state = %{source_id: cid, request_id: rid, request_name: req.name}
+        {:noreply, assign(socket, :move_request_modal, state)}
+
+      nil ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("close_move_request_modal", _params, socket),
+    do: {:noreply, assign(socket, :move_request_modal, nil)}
+
+  # Mueve un request al destino: lo agrega al destino (add_request preserva el
+  # id) y luego lo borra del origen. Ese orden evita perderlo si algo falla a
+  # mitad. La colección destino queda expandida.
+  def handle_event("commit_move_request", %{"collection_id" => target}, socket) do
+    case socket.assigns.move_request_modal do
+      %{source_id: src, request_id: rid} when target not in ["", nil] and target != src ->
+        with %Request{} = req <- find_request(socket.assigns.collections, src, rid) do
+          try_call(fn -> GrpcCollections.add_request(target, %{req | id: rid}) end)
+          try_call(fn -> GrpcCollections.remove_request(src, rid) end)
+        end
+
+        socket =
+          socket
+          |> assign(:move_request_modal, nil)
+          |> update(:expanded_collections, &MapSet.put(&1, target))
+          |> refresh_collections()
+
+        {:noreply, socket}
+
+      _ ->
+        {:noreply, assign(socket, :move_request_modal, nil)}
+    end
   end
 
   # ---------- Send ----------
@@ -764,6 +879,44 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   defp refresh_collections(socket),
     do: assign(socket, :collections, load_collections())
 
+  # Pestaña objetivo del modal "guardar pestaña": la del modal si está abierto,
+  # si no la activa (fallback defensivo).
+  defp save_tab_target_id(socket) do
+    case socket.assigns.save_tab_modal do
+      %{tab_id: id} -> id
+      _ -> socket.assigns.active_tab_id
+    end
+  end
+
+  # Resuelve la colección destino al guardar: `new_collection_name` (crea una
+  # nueva) tiene precedencia sobre `collection_id` (existente). `:error` si no
+  # se eligió ninguna.
+  defp resolve_save_target(params) do
+    new_name = String.trim(to_string(params["new_collection_name"]))
+    cid = String.trim(to_string(params["collection_id"]))
+
+    cond do
+      new_name != "" ->
+        case try_call(fn -> GrpcCollections.create(new_name) end) do
+          %Collection{id: id} -> {:ok, id}
+          _ -> :error
+        end
+
+      cid != "" ->
+        {:ok, cid}
+
+      true ->
+        :error
+    end
+  end
+
+  # Aplica `fun` al request de `tab_id` (no necesariamente la activa) y refresca
+  # la vista derivada.
+  defp update_tab(socket, tab_id, fun) when is_function(fun, 1) do
+    tabs = Enum.map(socket.assigns.tabs, fn t -> if t.id == tab_id, do: fun.(t), else: t end)
+    socket |> assign(:tabs, tabs) |> TabState.put_active_view()
+  end
+
   # Dispara la descarga del JSON en el navegador vía el hook FileDownload
   # (`download:file`), igual que el export REST.
   defp download_json(socket, name, json) do
@@ -954,7 +1107,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
       <div
         :for={tab <- @tabs}
         class={[
-          "flex items-center rounded-t-md border-x border-t shrink-0",
+          "group flex items-center rounded-t-md border-x border-t shrink-0",
           if(tab.id == @active_id,
             do: "bg-white dark:bg-zinc-900 border-zinc-300 dark:border-zinc-700 -mb-px",
             else:
@@ -976,6 +1129,26 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
           <span :if={MapSet.member?(@in_flight_tabs, tab.id)} class="text-zinc-400 animate-pulse">
             ●
           </span>
+        </button>
+        <button
+          type="button"
+          phx-click="duplicate_tab"
+          phx-value-id={tab.id}
+          aria-label={Translations.t(@locale, "grpc.aria.duplicate_tab")}
+          title={Translations.t(@locale, "grpc.aria.duplicate_tab")}
+          class="px-1.5 py-1.5 text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 text-xs invisible group-hover:visible"
+        >
+          ⧉
+        </button>
+        <button
+          type="button"
+          phx-click="open_save_tab_modal"
+          phx-value-id={tab.id}
+          aria-label={Translations.t(@locale, "grpc.aria.save_tab")}
+          title={Translations.t(@locale, "grpc.aria.save_tab")}
+          class="px-1.5 py-1.5 text-zinc-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-xs invisible group-hover:visible"
+        >
+          ⤓
         </button>
         <button
           type="button"
@@ -1044,45 +1217,13 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
         </div>
       </div>
 
-      <form phx-submit="save_to_collection" class="space-y-1">
-        <input
-          type="text"
-          name="name"
-          value={@request.name}
-          placeholder={Translations.t(@locale, "grpc.request_name_placeholder")}
-          autocomplete="off"
-          class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs dark:bg-zinc-800"
-        />
-        <div class="flex gap-1">
-          <select
-            name="collection_id"
-            disabled={@collections == []}
-            class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs dark:bg-zinc-800 disabled:opacity-50"
-          >
-            <option value="">{Translations.t(@locale, "grpc.collection_select")}</option>
-            <option :for={c <- @collections} value={c.id} selected={c.id == @request.collection_id}>
-              {c.name}
-            </option>
-          </select>
-          <button
-            type="submit"
-            disabled={@collections == []}
-            class="px-2 py-1 rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90 disabled:opacity-40"
-          >
-            {Translations.t(@locale, "grpc.save")}
-          </button>
-        </div>
-      </form>
-
-      <form phx-submit="new_collection" class="flex gap-1">
-        <input
-          type="text"
-          name="name"
-          placeholder={Translations.t(@locale, "grpc.new_collection_placeholder")}
-          autocomplete="off"
-          class="flex-1 rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-xs dark:bg-zinc-800"
-        />
-      </form>
+      <button
+        type="button"
+        phx-click="open_new_collection_modal"
+        class="w-full rounded-md border border-dashed border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-xs text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+      >
+        {Translations.t(@locale, "grpc.new_collection_button")}
+      </button>
 
       <form :if={@tab_count > 0} phx-submit="save_all_tabs" class="flex gap-1">
         <input
@@ -1119,6 +1260,16 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
             </button>
             <span class="flex-1 truncate" title={c.name}>{c.name}</span>
             <span class="text-xs text-zinc-400">{length(c.requests)}</span>
+            <button
+              type="button"
+              phx-click="open_rename_collection_modal"
+              phx-value-id={c.id}
+              aria-label={Translations.t(@locale, "grpc.aria.rename_collection")}
+              title={Translations.t(@locale, "grpc.aria.rename_collection")}
+              class="text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 px-1 invisible group-hover:visible text-xs"
+            >
+              ✎
+            </button>
             <button
               type="button"
               phx-click="export_grpc_collection"
@@ -1173,6 +1324,18 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
                 <span :if={r.method != ""} class="text-zinc-400 font-mono shrink-0">{r.method}</span>
               </button>
               <button
+                :if={length(@collections) > 1}
+                type="button"
+                phx-click="open_move_request_modal"
+                phx-value-collection-id={c.id}
+                phx-value-request-id={r.id}
+                aria-label={Translations.t(@locale, "grpc.aria.move_request")}
+                title={Translations.t(@locale, "grpc.move_to")}
+                class="text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 px-1 invisible group-hover:visible text-xs"
+              >
+                ↦
+              </button>
+              <button
                 type="button"
                 phx-click="delete_request_from_collection"
                 phx-value-collection-id={c.id}
@@ -1186,6 +1349,232 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
           </ul>
         </li>
       </ul>
+    </div>
+    """
+  end
+
+  @doc "Modal para crear una colección gRPC nueva."
+  attr :locale, :string, required: true
+
+  def new_collection_modal(assigns) do
+    ~H"""
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40">
+      <div
+        class="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-sm p-5"
+        phx-click-away="close_new_collection_modal"
+        phx-window-keydown="close_new_collection_modal"
+        phx-key="Escape"
+      >
+        <h2 class="text-base font-semibold text-zinc-800 dark:text-zinc-200 mb-3">
+          {Translations.t(@locale, "grpc.new_collection_title")}
+        </h2>
+        <form phx-submit="new_collection" class="space-y-3">
+          <input
+            type="text"
+            name="name"
+            autocomplete="off"
+            autofocus
+            placeholder={Translations.t(@locale, "grpc.new_collection_name_placeholder")}
+            class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+          />
+          <div class="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              phx-click="close_new_collection_modal"
+              class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-900"
+            >
+              {Translations.t(@locale, "grpc.cancel_button")}
+            </button>
+            <button
+              type="submit"
+              class="rounded-md px-3 py-1.5 text-sm bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90"
+            >
+              {Translations.t(@locale, "grpc.create")}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    """
+  end
+
+  @doc "Modal para guardar (publicar) una pestaña en una colección existente o nueva."
+  attr :state, :map, required: true
+  attr :collections, :list, required: true
+  attr :locale, :string, required: true
+
+  def save_tab_modal(assigns) do
+    ~H"""
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40">
+      <div
+        class="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md p-5"
+        phx-click-away="close_save_tab_modal"
+        phx-window-keydown="close_save_tab_modal"
+        phx-key="Escape"
+      >
+        <h2 class="text-base font-semibold text-zinc-800 dark:text-zinc-200 mb-3">
+          {Translations.t(@locale, "grpc.save_tab_title")}
+        </h2>
+        <form phx-submit="save_to_collection" class="space-y-3">
+          <div>
+            <label class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+              {Translations.t(@locale, "grpc.request_name_placeholder")}
+            </label>
+            <input
+              type="text"
+              name="name"
+              value={@state.name}
+              autocomplete="off"
+              autofocus
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            />
+          </div>
+
+          <div :if={@collections != []}>
+            <label class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+              {Translations.t(@locale, "grpc.save_tab_existing")}
+            </label>
+            <select
+              name="collection_id"
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 dark:text-zinc-100"
+            >
+              <option value="">{Translations.t(@locale, "grpc.collection_select")}</option>
+              <option :for={c <- @collections} value={c.id}>{c.name}</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs text-zinc-500 dark:text-zinc-400 mb-1">
+              {Translations.t(@locale, "grpc.save_tab_new")}
+            </label>
+            <input
+              type="text"
+              name="new_collection_name"
+              autocomplete="off"
+              placeholder={Translations.t(@locale, "grpc.save_tab_new_placeholder")}
+              class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+            />
+          </div>
+
+          <div class="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              phx-click="close_save_tab_modal"
+              class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-900"
+            >
+              {Translations.t(@locale, "grpc.cancel_button")}
+            </button>
+            <button
+              type="submit"
+              class="rounded-md px-3 py-1.5 text-sm bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90"
+            >
+              {Translations.t(@locale, "grpc.save")}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+    """
+  end
+
+  @doc "Modal para mover un request guardado a otra colección."
+  attr :state, :map, required: true
+  attr :collections, :list, required: true
+  attr :locale, :string, required: true
+
+  def move_request_modal(assigns) do
+    assigns =
+      assign(assigns, :targets, Enum.reject(assigns.collections, &(&1.id == assigns.state.source_id)))
+
+    ~H"""
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40">
+      <div
+        class="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-md p-5"
+        phx-click-away="close_move_request_modal"
+        phx-window-keydown="close_move_request_modal"
+        phx-key="Escape"
+      >
+        <h2 class="text-base font-semibold text-zinc-800 dark:text-zinc-200 mb-1">
+          {Translations.t(@locale, "grpc.move_request_title")}
+        </h2>
+        <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-3 truncate">{@state.request_name}</p>
+
+        <form :if={@targets != []} phx-submit="commit_move_request" class="space-y-3">
+          <select
+            name="collection_id"
+            class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 dark:text-zinc-100"
+          >
+            <option value="">{Translations.t(@locale, "grpc.collection_select")}</option>
+            <option :for={c <- @targets} value={c.id}>{c.name}</option>
+          </select>
+          <div class="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              phx-click="close_move_request_modal"
+              class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-900"
+            >
+              {Translations.t(@locale, "grpc.cancel_button")}
+            </button>
+            <button
+              type="submit"
+              class="rounded-md px-3 py-1.5 text-sm bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90"
+            >
+              {Translations.t(@locale, "grpc.move_button")}
+            </button>
+          </div>
+        </form>
+
+        <p :if={@targets == []} class="text-sm text-zinc-500 dark:text-zinc-400">
+          {Translations.t(@locale, "grpc.move_no_targets")}
+        </p>
+      </div>
+    </div>
+    """
+  end
+
+  @doc "Modal para renombrar una colección ya creada."
+  attr :state, :map, required: true
+  attr :locale, :string, required: true
+
+  def rename_collection_modal(assigns) do
+    ~H"""
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40">
+      <div
+        class="bg-white dark:bg-zinc-900 rounded-lg shadow-xl w-full max-w-sm p-5"
+        phx-click-away="close_rename_collection_modal"
+        phx-window-keydown="close_rename_collection_modal"
+        phx-key="Escape"
+      >
+        <h2 class="text-base font-semibold text-zinc-800 dark:text-zinc-200 mb-3">
+          {Translations.t(@locale, "grpc.rename_collection_title")}
+        </h2>
+        <form phx-submit="commit_rename_collection" class="space-y-3">
+          <input
+            type="text"
+            name="name"
+            value={@state.name}
+            autocomplete="off"
+            autofocus
+            placeholder={Translations.t(@locale, "grpc.new_collection_name_placeholder")}
+            class="w-full rounded-md border border-zinc-300 dark:border-zinc-700 px-2 py-1.5 text-sm dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+          />
+          <div class="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              phx-click="close_rename_collection_modal"
+              class="rounded-md px-3 py-1.5 text-sm border border-zinc-300 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800 dark:bg-zinc-900"
+            >
+              {Translations.t(@locale, "grpc.cancel_button")}
+            </button>
+            <button
+              type="submit"
+              class="rounded-md px-3 py-1.5 text-sm bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90"
+            >
+              {Translations.t(@locale, "grpc.save")}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
     """
   end

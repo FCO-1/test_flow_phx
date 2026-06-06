@@ -119,6 +119,20 @@
     "empty_collection": "(vacía)",
     "delete_collection_confirm": "¿Borrar la colección \"%{name}\"?",
     "untitled": "Sin título",
+    "new_collection_button": "+ Nueva colección",
+    "new_collection_title": "Nueva colección",
+    "new_collection_name_placeholder": "nombre de la colección",
+    "create": "Crear",
+    "cancel_button": "Cancelar",
+    "save_tab_title": "Guardar pestaña en colección",
+    "save_tab_existing": "Colección existente",
+    "save_tab_new": "+ Nueva colección",
+    "save_tab_new_placeholder": "nombre de la colección nueva",
+    "move_request_title": "Mover request a otra colección",
+    "move_to": "Mover a…",
+    "move_no_targets": "No hay otra colección a la que mover.",
+    "move_button": "Mover",
+    "rename_collection_title": "Renombrar colección",
     "upload_errors": {
       "too_large": "demasiado grande",
       "too_many_files": "demasiados archivos",
@@ -135,7 +149,11 @@
       "toggle_collection": "Expandir/colapsar colección",
       "delete_collection": "Borrar colección",
       "export_collection": "Exportar colección",
-      "delete_request": "Borrar request"
+      "delete_request": "Borrar request",
+      "save_tab": "Guardar pestaña en colección",
+      "move_request": "Mover request a otra colección",
+      "rename_collection": "Renombrar colección",
+      "duplicate_tab": "Duplicar pestaña"
     }
   }
 }
