@@ -743,4 +743,28 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
                GrpcCollections.list()
     end
   end
+
+  describe "tema y densidad (paridad con REST)" do
+    test "cambiar tema empuja theme:set y resalta el activo", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      html =
+        view
+        |> element("button[phx-click='set_theme'][phx-value-theme='dark']")
+        |> render_click()
+
+      assert_push_event(view, "theme:set", %{theme: "dark"})
+      assert html =~ "☾"
+    end
+
+    test "cambiar densidad empuja density:set", %{conn: conn} do
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      view
+      |> element("button[phx-click='set_density'][phx-value-density='compact']")
+      |> render_click()
+
+      assert_push_event(view, "density:set", %{density: "compact"})
+    end
+  end
 end

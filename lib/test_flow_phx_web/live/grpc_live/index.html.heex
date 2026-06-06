@@ -13,6 +13,10 @@
         {Translations.t(@locale, "grpc.nav_grpc")}
       </span>
     </nav>
+    <div class="ml-auto flex items-center gap-2">
+      <TesterComponents.density_toggle density={@density} />
+      <TesterComponents.theme_toggle theme={@theme} />
+    </div>
   </header>
 
   <div class="flex-1 flex min-h-0">
@@ -121,9 +125,9 @@
       <% end %>
     </aside>
 
-    <main class="flex-1 flex flex-col xl:flex-row gap-4 p-4 min-h-0 overflow-hidden">
+    <main class="flex-1 flex flex-col xl:flex-row gap-4 compact:gap-2 fluid:gap-6 p-4 compact:p-2 fluid:p-6 min-h-0 overflow-hidden">
       <%!-- ── Panel izquierdo: builder ── --%>
-      <div class="xl:w-1/2 xl:min-w-0 flex flex-col gap-4 overflow-y-auto">
+      <div class="xl:w-1/2 xl:min-w-0 flex flex-col gap-4 compact:gap-2 fluid:gap-6 overflow-y-auto">
         <.grpc_tab_bar
           tabs={@tabs}
           active_id={@active_tab_id}
@@ -132,7 +136,7 @@
         />
 
         <%!-- Carga de .proto --%>
-        <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+        <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 compact:p-2 fluid:p-6">
           <h2 class="text-sm font-semibold mb-2">
             {Translations.t(@locale, "grpc.proto_section")}
           </h2>
@@ -210,7 +214,7 @@
           </p>
         </section>
 
-        <form id="grpc-form" phx-change="validate" phx-submit="send" class="flex flex-col gap-4">
+        <form id="grpc-form" phx-change="validate" phx-submit="send" class="flex flex-col gap-4 compact:gap-2 fluid:gap-6">
           <%!-- target + send --%>
           <div class="flex gap-2">
             <input
@@ -282,7 +286,7 @@
           </div>
 
           <%!-- metadata --%>
-          <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+          <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 compact:p-2 fluid:p-6">
             <h2 class="text-sm font-semibold mb-2">{Translations.t(@locale, "grpc.metadata")}</h2>
             <TesterComponents.kv_editor
               rows={@request.metadata}
@@ -293,7 +297,7 @@
           </section>
 
           <%!-- body --%>
-          <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4">
+          <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 compact:p-2 fluid:p-6">
             <h2 class="text-sm font-semibold mb-2">{Translations.t(@locale, "grpc.body")}</h2>
             <textarea
               name="request[body_text]"
@@ -318,7 +322,7 @@
 
       <%!-- ── Panel derecho: response ── --%>
       <div class="xl:w-1/2 xl:min-w-0 flex flex-col overflow-y-auto">
-        <section class="flex-1 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 min-h-[12rem]">
+        <section class="flex-1 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 compact:p-2 fluid:p-6 min-h-[12rem]">
           <h2 class="text-sm font-semibold mb-3">{Translations.t(@locale, "grpc.response")}</h2>
 
           <%= cond do %>

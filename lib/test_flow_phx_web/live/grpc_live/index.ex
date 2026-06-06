@@ -50,6 +50,8 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
       socket
       |> assign(:page_title, "TestFlow gRPC")
       |> assign(:locale, Settings.get_locale())
+      |> assign(:theme, :system)
+      |> assign(:density, :standard)
       |> assign(:tabs, tabs)
       |> assign(:active_tab_id, active_id)
       |> assign(:responses, %{})
@@ -381,6 +383,40 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   def handle_event("sidebar_section", %{"section" => section}, socket)
       when section in ["collections", "history", "variables"] do
     {:noreply, assign(socket, :sidebar_section, String.to_existing_atom(section))}
+  end
+
+  # ---------- Tema / Densidad (cliente: localStorage vía hooks) ----------
+  #
+  # Espejo del tester REST. El estado real vive en el cliente (localStorage +
+  # clases en <html> vía los hooks ThemeToggle/DensityToggle); acá solo
+  # reflejamos el valor para resaltar el botón activo y reenviamos el cambio.
+
+  def handle_event("theme:current", %{"theme" => t}, socket),
+    do: {:noreply, assign(socket, :theme, parse_theme(t))}
+
+  def handle_event("set_theme", %{"theme" => t}, socket) do
+    theme = parse_theme(t)
+
+    socket =
+      socket
+      |> assign(:theme, theme)
+      |> push_event("theme:set", %{theme: Atom.to_string(theme)})
+
+    {:noreply, socket}
+  end
+
+  def handle_event("density:current", %{"density" => d}, socket),
+    do: {:noreply, assign(socket, :density, parse_density(d))}
+
+  def handle_event("set_density", %{"density" => d}, socket) do
+    density = parse_density(d)
+
+    socket =
+      socket
+      |> assign(:density, density)
+      |> push_event("density:set", %{density: Atom.to_string(density)})
+
+    {:noreply, socket}
   end
 
   # ---------- Historial ----------
@@ -943,6 +979,14 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   defp toggle(set, id) do
     if MapSet.member?(set, id), do: MapSet.delete(set, id), else: MapSet.put(set, id)
   end
+
+  defp parse_theme("light"), do: :light
+  defp parse_theme("dark"), do: :dark
+  defp parse_theme(_), do: :system
+
+  defp parse_density("compact"), do: :compact
+  defp parse_density("fluid"), do: :fluid
+  defp parse_density(_), do: :standard
 
   defp request_name(form_name, fallback) do
     case String.trim(to_string(form_name)) do
