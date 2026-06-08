@@ -17,5 +17,26 @@ defmodule TestFlowPhx.UseCases.Globals do
   @spec replace([Collection.variable()]) :: :ok
   def replace(vars) when is_list(vars), do: repo().replace_globals(vars)
 
+  @doc """
+  Upsert de una variable global por nombre: si ya existe `name`, le pisa el
+  valor y la deja habilitada; si no, la agrega. Usado por el encadenado de
+  respuestas (capturas) para refrescar p.ej. `{{token}}` tras cada login.
+  """
+  @spec put(String.t(), String.t()) :: :ok
+  def put(name, value) when is_binary(name) and is_binary(value) do
+    vars = list()
+
+    updated =
+      if Enum.any?(vars, &(&1.name == name)) do
+        Enum.map(vars, fn v ->
+          if v.name == name, do: %{v | value: value, enabled: true}, else: v
+        end)
+      else
+        vars ++ [%{name: name, value: value, enabled: true}]
+      end
+
+    replace(updated)
+  end
+
   defp repo, do: Application.fetch_env!(:test_flow_phx, :request_repo)
 end

@@ -41,6 +41,7 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcSerializer do
       "method" => r.method,
       "metadata" => dump_kv_rows(r.metadata),
       "body_text" => r.body_text,
+      "extractions" => dump_kv_rows(r.extractions),
       "collection_id" => r.collection_id
     }
   end
@@ -97,6 +98,7 @@ defmodule TestFlowPhx.Infrastructure.Storage.GrpcSerializer do
       method: map["method"] || "",
       metadata: load_kv_rows(map["metadata"]),
       body_text: map["body_text"] || "",
+      extractions: load_kv_rows(map["extractions"]),
       collection_id: map["collection_id"]
     }
   end

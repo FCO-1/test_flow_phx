@@ -23,12 +23,13 @@ defmodule TestFlowPhxWeb.GrpcLive.Params do
         body_text: Map.get(form, "body_text", request.body_text),
         service: service,
         method: valid_method(proto, service, Map.get(form, "method", request.method)),
-        metadata: metadata(form, request.metadata)
+        metadata: kv_field(form, "metadata", request.metadata),
+        extractions: kv_field(form, "extractions", request.extractions)
     }
   end
 
-  defp metadata(form, current) do
-    case form["metadata"] do
+  defp kv_field(form, key, current) do
+    case form[key] do
       nil -> current
       rows -> parse_kv_rows(rows)
     end

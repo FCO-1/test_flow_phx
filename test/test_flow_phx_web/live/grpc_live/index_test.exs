@@ -767,4 +767,124 @@ defmodule TestFlowPhxWeb.GrpcLive.IndexTest do
       assert_push_event(view, "density:set", %{density: "compact"})
     end
   end
+
+  describe "encadenado de respuestas (capturas)" do
+    setup do
+      tmp = Path.join(System.tmp_dir!(), "tf_grpc_extract_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(tmp)
+      on_exit(fn -> File.rm_rf!(tmp) end)
+
+      # JsonFileRepo: globals (donde aterrizan las capturas). GrpcJsonFileRepo: tabs.
+      start_supervised!(
+        {JsonFileRepo, name: JsonFileRepo, path: Path.join(tmp, "rest.json"), flush_after_ms: 10}
+      )
+
+      start_supervised!(
+        {GrpcJsonFileRepo,
+         name: GrpcJsonFileRepo, path: Path.join(tmp, "grpc.json"), flush_after_ms: 10}
+      )
+
+      :ok
+    end
+
+    test "captura un valor del body OK y lo guarda en una variable global",
+         %{conn: conn} do
+      FakeGrpcExecutor.stage(%Response{
+        status: 0,
+        body_decoded: %{"sesion" => %{"token" => "T-123"}},
+        duration_ms: 1
+      })
+
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      # regla de captura: token ← sesion.token
+      view
+      |> element("button[phx-click='add_kv_row'][phx-value-field='extractions']")
+      |> render_click()
+
+      view
+      |> form("#grpc-form",
+        request: %{
+          target: "localhost:50051",
+          extractions: %{"0" => %{key: "token", value: "sesion.token", enabled: "true"}}
+        }
+      )
+      |> render_change()
+
+      view |> form("#grpc-form", request: %{target: "localhost:50051"}) |> render_submit()
+      await(view)
+
+      assert Enum.any?(
+               Globals.list(),
+               &(&1.name == "token" and &1.value == "T-123" and &1.enabled)
+             )
+    end
+
+    test "captura anidada se reusa: el siguiente request resuelve {{token}}",
+         %{conn: conn} do
+      FakeGrpcExecutor.stage(%Response{
+        status: 0,
+        body_decoded: %{"sesion" => %{"token" => "T-XYZ"}}
+      })
+
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      view
+      |> element("button[phx-click='add_kv_row'][phx-value-field='extractions']")
+      |> render_click()
+
+      view
+      |> form("#grpc-form",
+        request: %{
+          target: "localhost:50051",
+          extractions: %{"0" => %{key: "token", value: "sesion.token", enabled: "true"}}
+        }
+      )
+      |> render_change()
+
+      view |> form("#grpc-form", request: %{target: "localhost:50051"}) |> render_submit()
+      await(view)
+
+      # segundo request usa {{token}} en metadata → resuelve al valor capturado
+      FakeGrpcExecutor.stage(%Response{status: 0})
+
+      view
+      |> form("#grpc-form",
+        request: %{
+          metadata: %{"0" => %{key: "authorization", value: "Bearer {{token}}", enabled: "true"}}
+        }
+      )
+      |> render_change()
+
+      view |> form("#grpc-form", request: %{target: "localhost:50051"}) |> render_submit()
+      await(view)
+
+      assert %{value: "Bearer T-XYZ"} =
+               Enum.find(FakeGrpcExecutor.last_request().metadata, &(&1.key == "authorization"))
+    end
+
+    test "no captura en respuesta de error", %{conn: conn} do
+      FakeGrpcExecutor.stage(%Response{status: 5, error: %{type: :grpc, code: 5, message: "no"}})
+
+      {:ok, view, _html} = live(conn, "/grpc")
+
+      view
+      |> element("button[phx-click='add_kv_row'][phx-value-field='extractions']")
+      |> render_click()
+
+      view
+      |> form("#grpc-form",
+        request: %{
+          target: "x:1",
+          extractions: %{"0" => %{key: "token", value: "sesion.token", enabled: "true"}}
+        }
+      )
+      |> render_change()
+
+      view |> form("#grpc-form", request: %{target: "x:1"}) |> render_submit()
+      await(view)
+
+      refute Enum.any?(Globals.list(), &(&1.name == "token"))
+    end
+  end
 end

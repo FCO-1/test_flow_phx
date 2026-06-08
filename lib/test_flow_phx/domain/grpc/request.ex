@@ -21,6 +21,14 @@ defmodule TestFlowPhx.Domain.Grpc.Request do
 
   @type kv_row :: %{key: String.t(), value: String.t(), enabled: boolean()}
 
+  @typedoc """
+  Regla de captura: tras una respuesta OK, extrae el valor en `value` (un
+  dot-path tipo `cuerpo.token`) y lo guarda en la variable global llamada `key`.
+  Reusa la forma `kv_row` (key=nombre de variable, value=ruta) para aprovechar
+  el mismo editor/serializer que `metadata`.
+  """
+  @type extraction :: kv_row()
+
   @type t :: %__MODULE__{
           id: String.t() | nil,
           name: String.t(),
@@ -33,6 +41,7 @@ defmodule TestFlowPhx.Domain.Grpc.Request do
           method: String.t(),
           metadata: [kv_row()],
           body_text: String.t(),
+          extractions: [extraction()],
           collection_id: String.t() | nil
         }
 
@@ -47,6 +56,7 @@ defmodule TestFlowPhx.Domain.Grpc.Request do
             method: "",
             metadata: [],
             body_text: "",
+            extractions: [],
             collection_id: nil
 
   @spec new(keyword() | map()) :: t()

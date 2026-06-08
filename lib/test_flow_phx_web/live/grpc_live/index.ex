@@ -25,7 +25,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
   use TestFlowPhxWeb, :live_view
 
   alias TestFlowPhx.Domain.Grpc.{Collection, HistoryEntry, Request, Response}
-  alias TestFlowPhx.UseCases.{Globals, Settings, Translations, Variables}
+  alias TestFlowPhx.UseCases.{Extraction, Globals, Settings, Translations, Variables}
 
   alias TestFlowPhx.Domain.Grpc.ProtoSet
 
@@ -266,6 +266,28 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
       socket
       |> TabState.update_active(fn req ->
         %{req | metadata: List.delete_at(req.metadata, String.to_integer(idx))}
+      end)
+      |> TabState.save()
+
+    {:noreply, socket}
+  end
+
+  def handle_event("add_kv_row", %{"field" => "extractions"}, socket) do
+    socket =
+      socket
+      |> TabState.update_active(fn req ->
+        %{req | extractions: req.extractions ++ [Request.empty_kv()]}
+      end)
+      |> TabState.save()
+
+    {:noreply, socket}
+  end
+
+  def handle_event("remove_kv_row", %{"field" => "extractions", "index" => idx}, socket) do
+    socket =
+      socket
+      |> TabState.update_active(fn req ->
+        %{req | extractions: List.delete_at(req.extractions, String.to_integer(idx))}
       end)
       |> TabState.save()
 
@@ -777,6 +799,7 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
           |> update(:send_tasks, &Map.delete(&1, tab_id))
           |> TabState.put_active_view()
           |> record_history(tab_id, response)
+          |> run_extractions(tab_id, response)
 
         {:noreply, socket}
 
@@ -838,6 +861,33 @@ defmodule TestFlowPhxWeb.GrpcLive.Index do
     case Enum.find(socket.assigns.collections, &(&1.id == cid)) do
       %Collection{variables: vars} -> vars
       _ -> []
+    end
+  end
+
+  # Encadenado de respuestas: tras una respuesta OK, aplica las reglas de
+  # captura del request (`extractions`) sobre el cuerpo decodificado (unary) o
+  # los mensajes (streaming) y guarda cada valor en una variable global. Así el
+  # siguiente request puede usarlo con `{{var}}`. En error no captura nada.
+  defp run_extractions(socket, _tab_id, %Response{error: err}) when not is_nil(err), do: socket
+
+  defp run_extractions(socket, tab_id, %Response{} = response) do
+    with %Request{extractions: [_ | _] = rules} <-
+           Enum.find(socket.assigns.tabs, &(&1.id == tab_id)) do
+      source = response.body_decoded || response.messages
+
+      captured =
+        for %{key: var, value: path, enabled: true} <- rules,
+            var != "",
+            path != "",
+            {:ok, value} <- [Extraction.get(source, path)] do
+          {var, Extraction.to_value(value)}
+        end
+
+      Enum.each(captured, fn {var, value} -> try_call(fn -> Globals.put(var, value) end) end)
+
+      if captured == [], do: socket, else: assign(socket, :globals, load_globals())
+    else
+      _ -> socket
     end
   end
 

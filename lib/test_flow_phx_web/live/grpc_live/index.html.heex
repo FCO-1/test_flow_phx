@@ -317,6 +317,18 @@
               </span>
             </p>
           </section>
+
+          <%!-- capturas: encadenado de respuestas --%>
+          <section class="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-4 compact:p-2 fluid:p-6">
+            <h2 class="text-sm font-semibold mb-1">{Translations.t(@locale, "grpc.extractions")}</h2>
+            <p class="text-xs text-zinc-500 mb-3">{Translations.t(@locale, "grpc.extractions_hint")}</p>
+            <TesterComponents.kv_editor
+              rows={@request.extractions}
+              field="extractions"
+              placeholder_key="token"
+              placeholder_value="cuerpo.token"
+            />
+          </section>
         </form>
       </div>
 

@@ -100,6 +100,8 @@
     "load_proto_hint": "— cargá un .proto —",
     "metadata": "Metadata",
     "body": "Cuerpo (JSON)",
+    "extractions": "Capturar de la respuesta",
+    "extractions_hint": "Tras una respuesta OK, guarda valores en variables globales para el siguiente request. Variable ← ruta (ej. cuerpo.token).",
     "variables_hint": "Variables (en target, metadata y cuerpo):",
     "response": "Respuesta",
     "streaming": "streaming…",
